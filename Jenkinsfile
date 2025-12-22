@@ -2,47 +2,6 @@ pipeline {
     agent any
 
     /* ============================
-     * PARAMETERS (JENKINS UI)
-     * ============================ */
-    parameters {
-        choice(
-            name: 'ENVIRONMENT',
-            choices: ['autoprod', 'qa', 'dev'],
-            description: 'Target environment'
-        )
-        choice(
-            name: 'LOAD_PROFILE',
-            choices: ['baseline-minimal', 'baseline', 'stress'],
-            description: 'Load profile'
-        )
-        booleanParam(
-            name: 'LOOPLOGIN',
-            defaultValue: true,
-            description: 'Loop login requests'
-        )
-        booleanParam(
-            name: 'DEBUG',
-            defaultValue: false,
-            description: 'Enable debug mode'
-        )
-        string(
-            name: 'DURATION',
-            defaultValue: '',
-            description: 'Duration override (optional)'
-        )
-        string(
-            name: 'API_GROUPS',
-            defaultValue: '',
-            description: 'API groups (comma-separated)'
-        )
-        string(
-            name: 'SELECTED_APIS',
-            defaultValue: '',
-            description: 'Specific APIs (comma-separated)'
-        )
-    }
-
-    /* ============================
      * ENVIRONMENT
      * ============================ */
     environment {
