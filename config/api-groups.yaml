@@ -1,0 +1,8 @@
+groups:
+  feed_batch_search:
+    - allfeeds
+    - crimedata
+    - riskintelligence
+
+  login_only:
+    - login

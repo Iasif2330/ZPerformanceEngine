@@ -1,0 +1,27 @@
+qa:
+  baseUrl: "https://qa.ontic.ai"
+  usersFile: "config/users/qa.csv"
+  payloads:
+    login: "data/login-payload.json"
+    accepttac: "data/qa/accepttac-payload.json"
+    allfeeds: "data/qa/allfeeds-payload.json"
+    crimedata: "data/qa/crimedata-payload.json"
+    riskintelligence: "data/qa/riskintelligence-payload.json"
+
+autoprod:
+  baseUrl: "https://autoprod.ontic.ai"
+  usersFile: "config/users/autoprod.csv"
+  payloads:
+    login: "data/login-payload.json"
+    allfeeds: "data/autoprod/allfeeds-payload.json"
+    crimedata: "data/autoprod/crimedata-payload.json"
+    riskintelligence: "data/autoprod/riskintelligence-payload.json"
+
+dev:
+  baseUrl: "https://devapp.qaontic.com"
+  usersFile: "config/users/dev.csv"
+  payloads:
+    login: "data/login-payload.json"
+    allfeeds: "data/dev/allfeeds-payload.json"
+    crimedata: "data/dev/crimedata-payload.json"
+    riskintelligence: "data/dev/riskintelligence-payload.json"

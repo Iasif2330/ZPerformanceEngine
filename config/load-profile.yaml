@@ -1,0 +1,31 @@
+universal:
+  loopLogin:
+  debug:
+  duration:
+
+profiles:
+
+  - name: baseline-minimal
+    threads: 1
+    rampup: 1
+    apiLoopCount: 1
+
+  - name: baseline-10x
+    threads: 10
+    rampup: 1
+    apiLoopCount: 1
+
+  - name: baseline-10x-extended
+    threads: 10
+    rampup: 1
+    apiLoopCount: 10
+
+  - name: baseline-20x
+    threads: 20
+    rampup: 1
+    apiLoopCount: 1
+
+  - name: baseline-20x-extended
+    threads: 20
+    rampup: 1
+    apiLoopCount: 10

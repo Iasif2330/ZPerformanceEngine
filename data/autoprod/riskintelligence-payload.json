@@ -1,0 +1,59 @@
+{
+  "requests": [
+    {
+      "widgetId": "692fd65565d009082dfa9f84",
+      "transientRequest": {
+        "filters": [
+          {
+            "field": "TILE_IDS",
+            "filterType": "IN",
+            "values": [
+              "3_0_2",
+              "3_0_3",
+              "3_1_2",
+              "3_1_3",
+              "3_2_2",
+              "3_2_3",
+              "3_3_2",
+              "3_3_3"
+            ]
+          },
+          {
+            "field": "LOCATION_COORDINATES",
+            "filterType": "EXISTS"
+          },
+          {
+            "field": "SNOOZED_ASSETS",
+            "filterType": "IN",
+            "values": [
+              false
+            ]
+          },
+          {
+            "field": "archived",
+            "filterType": "IN",
+            "values": [
+              false
+            ]
+          }
+        ],
+        "pageInfo": {
+          "page": 0,
+          "size": 100
+        },
+        "sortInfos": [
+          {
+            "field": "SOURCE_CREATED_TIME",
+            "order": "DESC"
+          }
+        ],
+        "timeFilter": {
+          "expression": "LIFETIME"
+        },
+        "timeZoneId": "Asia/Calcutta",
+        "tzOffset": -19800000,
+        "key": "399"
+      }
+    }
+  ]
+}
