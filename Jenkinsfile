@@ -1,11 +1,60 @@
 pipeline {
-    agent any
+    agent {
+        dockerfile {
+            filename 'Dockerfile'
+            dir '.'
+            reuseNode true
+        }
+    }
 
+    /* ============================
+     * PARAMETERS (JENKINS UI)
+     * ============================ */
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['autoprod', 'qa', 'dev'],
+            description: 'Target environment'
+        )
+        choice(
+            name: 'LOAD_PROFILE',
+            choices: ['baseline-minimal', 'baseline', 'stress'],
+            description: 'Load profile'
+        )
+        booleanParam(
+            name: 'LOOPLOGIN',
+            defaultValue: true,
+            description: 'Loop login requests'
+        )
+        booleanParam(
+            name: 'DEBUG',
+            defaultValue: false,
+            description: 'Enable debug mode'
+        )
+        string(
+            name: 'DURATION',
+            defaultValue: '',
+            description: 'Duration override (optional)'
+        )
+        string(
+            name: 'API_GROUPS',
+            defaultValue: '',
+            description: 'API groups (comma-separated)'
+        )
+        string(
+            name: 'SELECTED_APIS',
+            defaultValue: '',
+            description: 'Specific APIs (comma-separated)'
+        )
+    }
+
+    /* ============================
+     * ENVIRONMENT
+     * ============================ */
     environment {
-        PROJECT_DIR = "/Users/Shared/ZPerformanceEngine"
-        ENGINE_DIR  = "${PROJECT_DIR}/engine"
-        OUTPUT_DIR  = "${PROJECT_DIR}/output"
-        JMETER_HOME = "/Users/Shared/jmeter"
+        PROJECT_DIR = "/workspace"
+        ENGINE_DIR  = "/workspace/engine"
+        OUTPUT_DIR  = "/workspace/output"
     }
 
     stages {
@@ -15,13 +64,10 @@ pipeline {
          * ============================ */
         stage('Prepare Workspace') {
             steps {
-                script {
-                    sh "mkdir -p ${OUTPUT_DIR}"
-                    sh "rm -rf ${OUTPUT_DIR}/*"
-
-                    sh "rm -rf $WORKSPACE/output"
-                    sh "mkdir -p $WORKSPACE/output"
-                }
+                sh '''
+                    rm -rf output
+                    mkdir -p output
+                '''
             }
         }
 
@@ -31,14 +77,14 @@ pipeline {
         stage('Build CLI Args') {
             steps {
                 script {
-
                     def envValue     = params.ENVIRONMENT ?: "autoprod"
                     def profileValue = params.LOAD_PROFILE ?: "baseline-minimal"
-                    def loopVal      = (params.LOOPLOGIN ?: "true").toString().toLowerCase()
-                    def debugVal     = (params.DEBUG ?: "false").toString().toLowerCase()
+                    def loopVal      = params.LOOPLOGIN.toString().toLowerCase()
+                    def debugVal     = params.DEBUG.toString().toLowerCase()
 
                     def durRaw = params.DURATION ?: ""
-                    def durationVal = (durRaw.trim() == "" || durRaw.trim() == "0")
+                    def durationVal =
+                        (durRaw.trim() == "" || durRaw.trim() == "0")
                             ? null
                             : durRaw.toInteger()
 
@@ -46,16 +92,12 @@ pipeline {
                     def groupsValue = []
                     if (groupsValueRaw instanceof String && groupsValueRaw.trim() != "") {
                         groupsValue = groupsValueRaw.split(",") as List
-                    } else if (groupsValueRaw instanceof List) {
-                        groupsValue = groupsValueRaw
                     }
 
                     def apisValueRaw = params.SELECTED_APIS ?: ""
                     def apisValue = []
                     if (apisValueRaw instanceof String && apisValueRaw.trim() != "") {
                         apisValue = apisValueRaw.split(",") as List
-                    } else if (apisValueRaw instanceof List) {
-                        apisValue = apisValueRaw
                     }
 
                     apisValue = apisValue.collect { it.trim() }
@@ -98,18 +140,17 @@ ${cliArgs}
          * ============================ */
         stage('Generate Test Plan') {
             steps {
-                script {
-                    sh """
-                        cd ${PROJECT_DIR}
-                        groovy ${env.CLI_ARGS} ${ENGINE_DIR}/generateTestPlan.groovy
-                    """
+                sh '''
+                    groovy ${CLI_ARGS} engine/generateTestPlan.groovy
+                '''
 
-                    if (!fileExists("${OUTPUT_DIR}/generated-test-plan.jmx")) {
+                script {
+                    if (!fileExists("output/generated-test-plan.jmx")) {
                         error "❌ JMX generation failed!"
                     }
-
-                    echo "Generated JMX at: ${OUTPUT_DIR}/generated-test-plan.jmx"
                 }
+
+                echo "Generated JMX at: output/generated-test-plan.jmx"
             }
         }
 
@@ -118,49 +159,45 @@ ${cliArgs}
          * ============================ */
         stage('Run JMeter') {
             steps {
-                script {
-                    sh "rm -rf ${OUTPUT_DIR}/dashboard"
+                sh '''
+                    rm -rf output/dashboard
 
-                    sh """
-                        ${JMETER_HOME}/bin/jmeter -n \
-                        -t ${OUTPUT_DIR}/generated-test-plan.jmx \
-                        -l ${OUTPUT_DIR}/results.jtl \
-                        -Jjmeter.save.saveservice.output_format=csv \
-                        -Jjmeter.save.saveservice.assertion_results=none \
-                        -Jjmeter.save.saveservice.data_type=true \
-                        -Jjmeter.save.saveservice.label=true \
-                        -Jjmeter.save.saveservice.response_code=true \
-                        -Jjmeter.save.saveservice.response_message=true \
-                        -Jjmeter.save.saveservice.successful=true \
-                        -Jjmeter.save.saveservice.thread_name=true \
-                        -Jjmeter.save.saveservice.time=true \
-                        -Jjmeter.save.saveservice.latency=true \
-                        -Jjmeter.save.saveservice.connect_time=true \
-                        -Jjmeter.save.saveservice.bytes=true \
-                        -Jjmeter.save.saveservice.sent_bytes=true \
-                        -Jjmeter.save.saveservice.sample_count=true \
-                        -Jjmeter.save.saveservice.error_count=true \
-                        -Jjmeter.save.saveservice.hostname=true \
-                        -Jjmeter.save.saveservice.timestamp=true \
-                        -Jjmeter.save.saveservice.thread_counts=true \
-                        -e -o ${OUTPUT_DIR}/dashboard
-                    """
-                }
+                    jmeter -n \
+                      -t output/generated-test-plan.jmx \
+                      -l output/results.jtl \
+                      -Jjmeter.save.saveservice.output_format=csv \
+                      -Jjmeter.save.saveservice.assertion_results=none \
+                      -Jjmeter.save.saveservice.data_type=true \
+                      -Jjmeter.save.saveservice.label=true \
+                      -Jjmeter.save.saveservice.response_code=true \
+                      -Jjmeter.save.saveservice.response_message=true \
+                      -Jjmeter.save.saveservice.successful=true \
+                      -Jjmeter.save.saveservice.thread_name=true \
+                      -Jjmeter.save.saveservice.time=true \
+                      -Jjmeter.save.saveservice.latency=true \
+                      -Jjmeter.save.saveservice.connect_time=true \
+                      -Jjmeter.save.saveservice.bytes=true \
+                      -Jjmeter.save.saveservice.sent_bytes=true \
+                      -Jjmeter.save.saveservice.sample_count=true \
+                      -Jjmeter.save.saveservice.error_count=true \
+                      -Jjmeter.save.saveservice.hostname=true \
+                      -Jjmeter.save.saveservice.timestamp=true \
+                      -Jjmeter.save.saveservice.thread_counts=true \
+                      -e -o output/dashboard
+                '''
             }
         }
 
         /* ============================
-         * STAGE 5 — Executive Summary (NEW)
+         * STAGE 5 — Executive Summary
          * ============================ */
         stage('Generate Executive Summary') {
             steps {
-                script {
-                    sh """
-                        python3 ${PROJECT_DIR}/scripts/generate_executive_report.py \
-                        ${OUTPUT_DIR}/results.jtl \
-                        ${OUTPUT_DIR}/executive
-                    """
-                }
+                sh '''
+                    python3 scripts/generate_executive_report.py \
+                      output/results.jtl \
+                      output/executive
+                '''
             }
         }
 
@@ -169,48 +206,38 @@ ${cliArgs}
          * ============================ */
         stage('Archive Results') {
             steps {
-                script {
-                    sh "rm -rf $WORKSPACE/output"
-                    sh "mkdir -p $WORKSPACE/output"
+                archiveArtifacts artifacts: 'output/results.jtl', fingerprint: true
+                archiveArtifacts artifacts: 'output/generated-test-plan.jmx', fingerprint: true
+                archiveArtifacts artifacts: 'output/dashboard/**', fingerprint: true
+                archiveArtifacts artifacts: 'output/executive/**', fingerprint: true
 
-                    sh """
-                        cp ${OUTPUT_DIR}/results.jtl $WORKSPACE/output/
-                        cp ${OUTPUT_DIR}/generated-test-plan.jmx $WORKSPACE/output/
-                        cp -R ${OUTPUT_DIR}/dashboard $WORKSPACE/output/
-                        cp -R ${OUTPUT_DIR}/executive $WORKSPACE/output/
-                    """
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'output/dashboard',
+                    reportFiles: 'index.html',
+                    reportName: 'JMeter HTML Report'
+                ])
 
-                    archiveArtifacts artifacts: 'output/results.jtl', fingerprint: true
-                    archiveArtifacts artifacts: 'output/generated-test-plan.jmx', fingerprint: true
-                    archiveArtifacts artifacts: 'output/dashboard/**', fingerprint: true
-                    archiveArtifacts artifacts: 'output/executive/**', fingerprint: true
-
-                    /* Engineers */
-                    publishHTML(target: [
-                        allowMissing: false,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'output/dashboard',
-                        reportFiles: 'index.html',
-                        reportName: 'JMeter HTML Report'
-                    ])
-
-                    /* Clients */
-                    publishHTML(target: [
-                        allowMissing: false,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'output/executive',
-                        reportFiles: 'index.html',
-                        reportName: 'Performance Summary'
-                    ])
-                }
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'output/executive',
+                    reportFiles: 'index.html',
+                    reportName: 'Performance Summary'
+                ])
             }
         }
     }
 
     post {
-        success { echo "🎉 Pipeline completed successfully!" }
-        failure { echo "❌ Pipeline failed — check logs" }
+        success {
+            echo "🎉 Pipeline completed successfully (Docker-based)"
+        }
+        failure {
+            echo "❌ Pipeline failed — check logs"
+        }
     }
 }
