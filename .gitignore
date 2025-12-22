@@ -1,0 +1,16 @@
+# Runtime output
+output/
+temp/
+
+# JMeter artifacts
+*.jmx
+*.jtl
+
+# Local / legacy tools
+jmeter/
+apache-jmeter-*
+jenkins-python-venv/
+
+# OS / Python noise
+.DS_Store
+__pycache__/
