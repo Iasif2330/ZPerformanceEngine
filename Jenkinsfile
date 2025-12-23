@@ -83,7 +83,6 @@ FINAL CLI ARGS
 --------------
 ${cliArgs}
 """
-
                     env.CLI_ARGS = cliArgs
                 }
             }
@@ -169,7 +168,7 @@ ${cliArgs}
         }
 
         /* ============================
-         * STAGE 7 — Archive & Publish
+         * STAGE 7 — Archive Results
          * ============================ */
         stage('Archive Results') {
             steps {
@@ -182,21 +181,15 @@ ${cliArgs}
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
-                    reportDir: 'output/dashboard',
-                    reportFiles: 'index.html',
-                    reportName: 'JMeter HTML Report',
-                    useWrapperFileDirectly: true
-                ])
-
-                publishHTML(target: [
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
                     reportDir: 'output/executive',
                     reportFiles: 'index.html',
-                    reportName: 'Performance Summary',
-                    useWrapperFileDirectly: true
+                    reportName: 'Performance Summary'
                 ])
+
+                echo """
+JMeter HTML Dashboard is attached as a build artifact.
+Download 'output/dashboard' and open index.html locally for full charts.
+"""
             }
         }
     }
