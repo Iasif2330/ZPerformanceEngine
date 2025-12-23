@@ -168,15 +168,24 @@ ${cliArgs}
         }
 
         /* ============================
-         * STAGE 7 — Archive Results
+         * STAGE 7 — Package & Archive Reports
          * ============================ */
         stage('Archive Results') {
             steps {
+
+                /* Package BOTH reports into a single ZIP */
+                sh '''
+                    cd output
+                    zip -r performance-reports.zip dashboard executive
+                '''
+
                 archiveArtifacts artifacts: 'output/results.jtl', fingerprint: true
                 archiveArtifacts artifacts: 'output/generated-test-plan.jmx', fingerprint: true
                 archiveArtifacts artifacts: 'output/dashboard/**', fingerprint: true
                 archiveArtifacts artifacts: 'output/executive/**', fingerprint: true
+                archiveArtifacts artifacts: 'output/performance-reports.zip', fingerprint: true
 
+                /* Executive summary (simple inline view) */
                 publishHTML(target: [
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
@@ -187,8 +196,24 @@ ${cliArgs}
                 ])
 
                 echo """
-JMeter HTML Dashboard is attached as a build artifact.
-Download 'output/dashboard' and open index.html locally for full charts.
+================= REPORT ACCESS =================
+
+✅ A single ZIP containing ALL reports is available:
+   → Artifacts → output/performance-reports.zip
+
+📊 JMeter Dashboard:
+   - Download the ZIP
+   - Open: dashboard/index.html locally
+
+📄 Executive Performance Summary:
+   - Download the ZIP
+   - Open: executive/index.html locally
+
+⚠️ Note:
+   Jenkins UI cannot render JavaScript/CSS-heavy reports
+   due to security restrictions. Local viewing is required.
+
+=================================================
 """
             }
         }
