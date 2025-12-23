@@ -173,45 +173,34 @@ ${cliArgs}
         stage('Archive Results') {
             steps {
 
-                /* Package BOTH reports into a single ZIP */
+                /* Create ONE distributable ZIP */
                 sh '''
                     cd output
+                    rm -f performance-reports.zip
                     zip -r performance-reports.zip dashboard executive
                 '''
 
-                archiveArtifacts artifacts: 'output/results.jtl', fingerprint: true
-                archiveArtifacts artifacts: 'output/generated-test-plan.jmx', fingerprint: true
-                archiveArtifacts artifacts: 'output/dashboard/**', fingerprint: true
-                archiveArtifacts artifacts: 'output/executive/**', fingerprint: true
+                /* Archive ONLY what users should download */
                 archiveArtifacts artifacts: 'output/performance-reports.zip', fingerprint: true
-
-                /* Executive summary (simple inline view) */
-                publishHTML(target: [
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'output/executive',
-                    reportFiles: 'index.html',
-                    reportName: 'Performance Summary'
-                ])
+                archiveArtifacts artifacts: 'output/results.jtl', fingerprint: true
 
                 echo """
 ================= REPORT ACCESS =================
 
-✅ A single ZIP containing ALL reports is available:
-   → Artifacts → output/performance-reports.zip
+📦 DOWNLOAD:
+   Artifacts → performance-reports.zip
 
 📊 JMeter Dashboard:
-   - Download the ZIP
-   - Open: dashboard/index.html locally
+   - Unzip
+   - Open: dashboard/index.html (locally)
 
-📄 Executive Performance Summary:
-   - Download the ZIP
-   - Open: executive/index.html locally
+📄 Executive Summary:
+   - Unzip
+   - Open: executive/index.html (locally)
 
-⚠️ Note:
-   Jenkins UI cannot render JavaScript/CSS-heavy reports
-   due to security restrictions. Local viewing is required.
+⚠️ IMPORTANT:
+   Do NOT open reports inside Jenkins UI.
+   Jenkins blocks JS/CSS for security reasons.
 
 =================================================
 """
