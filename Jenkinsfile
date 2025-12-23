@@ -2,53 +2,52 @@ pipeline {
     agent any
 
     environment {
-        PROJECT_DIR = "/Users/Shared/ZPerformanceEngine"
-        ENGINE_DIR  = "${PROJECT_DIR}/engine"
-        OUTPUT_DIR  = "${PROJECT_DIR}/output"
-        JMETER_HOME = "/Users/Shared/jmeter"
+        DOCKER_CLI = "/Applications/Docker.app/Contents/Resources/bin/docker"
+        IMAGE_NAME = "zperformance-engine"
+        WORKDIR    = "/workspace"
     }
 
     stages {
 
         /* ============================
-         * STAGE 1 — Prepare Workspace
+         * STAGE 1 — Build Docker Image
          * ============================ */
-        stage('Prepare Workspace') {
+        stage('Build Docker Image') {
             steps {
-                script {
-                    sh "mkdir -p ${OUTPUT_DIR}"
-                    sh "rm -rf ${OUTPUT_DIR}/*"
-
-                    sh "rm -rf $WORKSPACE/output"
-                    sh "mkdir -p $WORKSPACE/output"
-                }
+                sh """
+                    ${DOCKER_CLI} build -t ${IMAGE_NAME} .
+                """
             }
         }
 
         /* ============================
-         * STAGE 2 — Build CLI Arguments
+         * STAGE 2 — Prepare Workspace
+         * ============================ */
+        stage('Prepare Workspace') {
+            steps {
+                sh '''
+                    rm -rf output
+                    mkdir -p output
+                '''
+            }
+        }
+
+        /* ============================
+         * STAGE 3 — Build CLI Arguments
          * ============================ */
         stage('Build CLI Args') {
             steps {
                 script {
-
                     def envValue     = params.ENVIRONMENT ?: "autoprod"
                     def profileValue = params.LOAD_PROFILE ?: "baseline-minimal"
-                    def loopVal      = (params.LOOPLOGIN ?: "true").toString().toLowerCase()
-                    def debugVal     = (params.DEBUG ?: "false").toString().toLowerCase()
+                    def loopVal      = params.LOOPLOGIN?.toString()?.toLowerCase() ?: "true"
+                    def debugVal     = params.DEBUG?.toString()?.toLowerCase() ?: "false"
 
                     def durRaw = params.DURATION ?: ""
-                    def durationVal = (durRaw.trim() == "" || durRaw.trim() == "0")
+                    def durationVal =
+                        (durRaw.trim() == "" || durRaw.trim() == "0")
                             ? null
                             : durRaw.toInteger()
-
-                    def groupsValueRaw = params.API_GROUPS ?: ""
-                    def groupsValue = []
-                    if (groupsValueRaw instanceof String && groupsValueRaw.trim() != "") {
-                        groupsValue = groupsValueRaw.split(",") as List
-                    } else if (groupsValueRaw instanceof List) {
-                        groupsValue = groupsValueRaw
-                    }
 
                     def apisValueRaw = params.SELECTED_APIS ?: ""
                     def apisValue = []
@@ -73,9 +72,6 @@ pipeline {
                     if (durationVal != null)
                         cliArgs += "-Dduration=${durationVal} "
 
-                    if (!groupsValue.isEmpty())
-                        cliArgs += "-Dgroup=${groupsValue.join(',')} "
-
                     if (onlyLoginSelected) {
                         cliArgs += "-Dapis=login "
                     } else if (!nonLoginApis.isEmpty()) {
@@ -94,125 +90,123 @@ ${cliArgs}
         }
 
         /* ============================
-         * STAGE 3 — Generate Dynamic JMX
+         * STAGE 4 — Generate Dynamic JMX
          * ============================ */
         stage('Generate Test Plan') {
             steps {
-                script {
-                    sh """
-                        cd ${PROJECT_DIR}
-                        groovy ${env.CLI_ARGS} ${ENGINE_DIR}/generateTestPlan.groovy
-                    """
+                sh """
+                    ${DOCKER_CLI} run --rm \
+                      -v "${WORKSPACE}:${WORKDIR}" \
+                      -w ${WORKDIR} \
+                      ${IMAGE_NAME} \
+                      groovy ${CLI_ARGS} engine/generateTestPlan.groovy
+                """
 
-                    if (!fileExists("${OUTPUT_DIR}/generated-test-plan.jmx")) {
+                script {
+                    if (!fileExists("output/generated-test-plan.jmx")) {
                         error "❌ JMX generation failed!"
                     }
-
-                    echo "Generated JMX at: ${OUTPUT_DIR}/generated-test-plan.jmx"
                 }
+
+                echo "Generated JMX at: output/generated-test-plan.jmx"
             }
         }
 
         /* ============================
-         * STAGE 4 — Run JMeter
+         * STAGE 5 — Run JMeter
          * ============================ */
         stage('Run JMeter') {
             steps {
-                script {
-                    sh "rm -rf ${OUTPUT_DIR}/dashboard"
-
-                    sh """
-                        ${JMETER_HOME}/bin/jmeter -n \
-                        -t ${OUTPUT_DIR}/generated-test-plan.jmx \
-                        -l ${OUTPUT_DIR}/results.jtl \
-                        -Jjmeter.save.saveservice.output_format=csv \
-                        -Jjmeter.save.saveservice.assertion_results=none \
-                        -Jjmeter.save.saveservice.data_type=true \
-                        -Jjmeter.save.saveservice.label=true \
-                        -Jjmeter.save.saveservice.response_code=true \
-                        -Jjmeter.save.saveservice.response_message=true \
-                        -Jjmeter.save.saveservice.successful=true \
-                        -Jjmeter.save.saveservice.thread_name=true \
-                        -Jjmeter.save.saveservice.time=true \
-                        -Jjmeter.save.saveservice.latency=true \
-                        -Jjmeter.save.saveservice.connect_time=true \
-                        -Jjmeter.save.saveservice.bytes=true \
-                        -Jjmeter.save.saveservice.sent_bytes=true \
-                        -Jjmeter.save.saveservice.sample_count=true \
-                        -Jjmeter.save.saveservice.error_count=true \
-                        -Jjmeter.save.saveservice.hostname=true \
-                        -Jjmeter.save.saveservice.timestamp=true \
-                        -Jjmeter.save.saveservice.thread_counts=true \
-                        -e -o ${OUTPUT_DIR}/dashboard
-                    """
-                }
+                sh """
+                    ${DOCKER_CLI} run --rm \
+                      -v "${WORKSPACE}:${WORKDIR}" \
+                      -w ${WORKDIR} \
+                      ${IMAGE_NAME} \
+                      sh -c '
+                        rm -rf output/dashboard &&
+                        jmeter -n \
+                          -t output/generated-test-plan.jmx \
+                          -l output/results.jtl \
+                          -Jjmeter.save.saveservice.output_format=csv \
+                          -Jjmeter.save.saveservice.assertion_results=none \
+                          -Jjmeter.save.saveservice.data_type=true \
+                          -Jjmeter.save.saveservice.label=true \
+                          -Jjmeter.save.saveservice.response_code=true \
+                          -Jjmeter.save.saveservice.response_message=true \
+                          -Jjmeter.save.saveservice.successful=true \
+                          -Jjmeter.save.saveservice.thread_name=true \
+                          -Jjmeter.save.saveservice.time=true \
+                          -Jjmeter.save.saveservice.latency=true \
+                          -Jjmeter.save.saveservice.connect_time=true \
+                          -Jjmeter.save.saveservice.bytes=true \
+                          -Jjmeter.save.saveservice.sent_bytes=true \
+                          -Jjmeter.save.saveservice.sample_count=true \
+                          -Jjmeter.save.saveservice.error_count=true \
+                          -Jjmeter.save.saveservice.hostname=true \
+                          -Jjmeter.save.saveservice.timestamp=true \
+                          -Jjmeter.save.saveservice.thread_counts=true \
+                          -e -o output/dashboard
+                      '
+                """
             }
         }
 
         /* ============================
-         * STAGE 5 — Executive Summary (NEW)
+         * STAGE 6 — Executive Summary
          * ============================ */
         stage('Generate Executive Summary') {
             steps {
-                script {
-                    sh """
-                        python3 ${PROJECT_DIR}/scripts/generate_executive_report.py \
-                        ${OUTPUT_DIR}/results.jtl \
-                        ${OUTPUT_DIR}/executive
-                    """
-                }
+                sh """
+                    ${DOCKER_CLI} run --rm \
+                      -v "${WORKSPACE}:${WORKDIR}" \
+                      -w ${WORKDIR} \
+                      ${IMAGE_NAME} \
+                      python3 scripts/generate_executive_report.py \
+                        output/results.jtl \
+                        output/executive
+                """
             }
         }
 
         /* ============================
-         * STAGE 6 — Archive & Publish
+         * STAGE 7 — Archive & Publish
          * ============================ */
         stage('Archive Results') {
             steps {
-                script {
-                    sh "rm -rf $WORKSPACE/output"
-                    sh "mkdir -p $WORKSPACE/output"
+                archiveArtifacts artifacts: 'output/results.jtl', fingerprint: true
+                archiveArtifacts artifacts: 'output/generated-test-plan.jmx', fingerprint: true
+                archiveArtifacts artifacts: 'output/dashboard/**', fingerprint: true
+                archiveArtifacts artifacts: 'output/executive/**', fingerprint: true
 
-                    sh """
-                        cp ${OUTPUT_DIR}/results.jtl $WORKSPACE/output/
-                        cp ${OUTPUT_DIR}/generated-test-plan.jmx $WORKSPACE/output/
-                        cp -R ${OUTPUT_DIR}/dashboard $WORKSPACE/output/
-                        cp -R ${OUTPUT_DIR}/executive $WORKSPACE/output/
-                    """
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'output/dashboard',
+                    reportFiles: 'index.html',
+                    reportName: 'JMeter HTML Report',
+                    useWrapperFileDirectly: true
+                ])
 
-                    archiveArtifacts artifacts: 'output/results.jtl', fingerprint: true
-                    archiveArtifacts artifacts: 'output/generated-test-plan.jmx', fingerprint: true
-                    archiveArtifacts artifacts: 'output/dashboard/**', fingerprint: true
-                    archiveArtifacts artifacts: 'output/executive/**', fingerprint: true
-
-                    /* Engineers */
-                    publishHTML(target: [
-                        allowMissing: false,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'output/dashboard',
-                        reportFiles: 'index.html',
-                        reportName: 'JMeter HTML Report',
-                        useWrapperFileDirectly: true
-                    ])
-
-                    /* Clients */
-                    publishHTML(target: [
-                        allowMissing: false,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'output/executive',
-                        reportFiles: 'index.html',
-                        reportName: 'Performance Summary',
-                        useWrapperFileDirectly: true
-                    ])
-                }
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'output/executive',
+                    reportFiles: 'index.html',
+                    reportName: 'Performance Summary',
+                    useWrapperFileDirectly: true
+                ])
             }
         }
     }
 
     post {
-        success { echo "🎉 Pipeline completed successfully!" }
-        failure { echo "❌ Pipeline failed — check logs" }
+        success {
+            echo "🎉 Pipeline completed successfully (Docker-based)"
+        }
+        failure {
+            echo "❌ Pipeline failed — check logs"
+        }
     }
 }
