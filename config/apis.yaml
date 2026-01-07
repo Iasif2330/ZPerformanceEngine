@@ -6,7 +6,7 @@ apis:
     headers: "loginHeaders"
     extractCookie: true
 
-  - name: accepttac
+  - name: acce
     method: POST
     endpoint: "/rest/web/current/tac/consent/LOGIN/ONTIC/accept/64638f6db5f98656e01c3c76?state=OSE_WmTfiSjBBRufmkT5purFsBZ4rLWCQEamWbmoTfi_Qj1kHgHwZCrqE40Tpz9V7giDfEWVYMiTsFHWLIjTl8Eu9NOwGP_3ey0YTbtfhPgzPCVOGTDp6Xc9w-Ho6hc7UmVvscNX444grWLSodV0kvhcSb6DN-jpU8Q45kurffLeJj8%3D"
     payload: "useEnv"
