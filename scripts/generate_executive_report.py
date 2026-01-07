@@ -128,10 +128,10 @@ for api, d in apis.items():
     # Per-API active window throughput (FIXED)
     # --------------------------------------------------
     if d["timestamps"]:
-        api_duration = max(
-            (max(d["timestamps"]) - min(d["timestamps"])) / 1000,
-            1
-        )
+        api_duration = (max(d["timestamps"]) - min(d["timestamps"])) / 1000
+        # Guard only against true zero
+        if api_duration <= 0:
+            api_duration = 0.001
     else:
         api_duration = 1
 
