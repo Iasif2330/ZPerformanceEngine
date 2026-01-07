@@ -41,16 +41,13 @@ def percentile(data, p):
     return round(data[f] + (data[c] - data[f]) * (k - f))
 
 # --------------------------------------------------
-# Load JTL
+# Load Results
 # --------------------------------------------------
 with open(RESULTS_JTL, newline="") as f:
     rows = list(csv.DictReader(f))
 
 TOTAL_REQUESTS = len(rows)
 LOW_SAMPLE = TOTAL_REQUESTS < LOW_SAMPLE_THRESHOLD
-
-timestamps = [to_int(r.get("timeStamp", 0)) for r in rows if r.get("timeStamp")]
-duration_sec = max((max(timestamps) - min(timestamps)) / 1000, 1) if timestamps else 1
 
 # --------------------------------------------------
 # Group by API label
@@ -61,17 +58,22 @@ apis = defaultdict(lambda: {
     "bytes": [],
     "sent": [],
     "codes": [],
-    "messages": []
+    "messages": [],
+    "timestamps": []
 })
 
 for r in rows:
     api = r.get("label", "UNKNOWN")
+    ts = to_int(r.get("timeStamp", 0))
+
     apis[api]["elapsed"].append(to_int(r.get("elapsed", 0)))
     apis[api]["success"].append(r.get("success", "").lower() == "true")
     apis[api]["bytes"].append(to_int(r.get("bytes", 0)))
     apis[api]["sent"].append(to_int(r.get("sentBytes", 0)))
     apis[api]["codes"].append(r.get("responseCode", ""))
     apis[api]["messages"].append(r.get("responseMessage", ""))
+    if ts:
+        apis[api]["timestamps"].append(ts)
 
 # --------------------------------------------------
 # Analysis containers
@@ -86,7 +88,7 @@ critical_failures = 0
 apis_with_errors = 0
 
 # --------------------------------------------------
-# Per-API analysis (JTL-ONLY)
+# Per-API analysis
 # --------------------------------------------------
 for api, d in apis.items():
     samples = len(d["elapsed"])
@@ -122,12 +124,23 @@ for api, d in apis.items():
     if effective_failures > 0:
         apis_with_errors += 1
 
-    recv_kb = round(sum(d["bytes"]) / 1024 / duration_sec, 2)
-    sent_kb = round(sum(d["sent"]) / 1024 / duration_sec, 2)
-    throughput = round(samples / duration_sec, 2)
+    # --------------------------------------------------
+    # Per-API active window throughput (FIXED)
+    # --------------------------------------------------
+    if d["timestamps"]:
+        api_duration = max(
+            (max(d["timestamps"]) - min(d["timestamps"])) / 1000,
+            1
+        )
+    else:
+        api_duration = 1
+
+    throughput = round(samples / api_duration, 2)
+    recv_kb = round(sum(d["bytes"]) / 1024 / api_duration, 2)
+    sent_kb = round(sum(d["sent"]) / 1024 / api_duration, 2)
 
     # --------------------------------------------------
-    # Error breakdown (exact JTL evidence)
+    # Error breakdown
     # --------------------------------------------------
     error_counter = Counter()
     for code, msg, success in zip(d["codes"], d["messages"], d["success"]):
@@ -141,7 +154,7 @@ for api, d in apis.items():
         ) + "</ul>"
 
     # --------------------------------------------------
-    # Status (NEUTRAL, JTL-ONLY)
+    # Status & Observations (NO explicit JTL mention)
     # --------------------------------------------------
     if api in NON_EVALUABLE_LABELS:
         status = "Not Evaluated"
@@ -152,8 +165,8 @@ for api, d in apis.items():
     elif failures == 0:
         status = "No Anomalies Observed"
         text = (
-            "All requests completed successfully. "
-            "No errors were observed in the JTL data."
+            "All requests completed successfully with stable response times "
+            "and no observed errors."
         )
     elif effective_failures == 0:
         status = "Functional Errors Observed"
@@ -165,7 +178,7 @@ for api, d in apis.items():
     else:
         status = "Errors Observed"
         text = (
-            "Request failures were observed in the JTL results under test load. "
+            "Request failures were observed under test load. "
             "These outcomes reflect client-observed behavior only."
             + error_details
         )
@@ -218,7 +231,7 @@ if LOW_SAMPLE:
     )
 
 # --------------------------------------------------
-# Final HTML (EXECUTIVE-GRADE)
+# Final HTML
 # --------------------------------------------------
 html = f"""
 <!DOCTYPE html>
@@ -273,7 +286,7 @@ td:first-child {{
 <div class="summary-box">
 <p><strong>Summary</strong></p>
 <p>
-This report summarizes <strong>client-observed request behavior</strong> captured during test execution using JMeter JTL data.
+This report summarizes <strong>client-observed request behavior</strong> captured during test execution.
 </p>
 
 <p><strong>Total requests:</strong> {TOTAL_REQUESTS}</p>
