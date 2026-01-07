@@ -30,38 +30,67 @@ def r(v, d=2):
     return round(v, d) if isinstance(v, (int, float)) else v
 
 # --------------------------------------------------
-# Build Statistics rows (JMeter parity)
+# Prepare data
 # --------------------------------------------------
-rows_html = ""
+total = stats.get("Total", {})
+rows_html = []
 observations = []
 
-total = stats.get("Total", {})
+total_error_count = total.get("errorCount", 0)
 
+# --------------------------------------------------
+# Build Statistics table (JMeter parity)
+# --------------------------------------------------
 for label, m in stats.items():
     if label == "Total":
         continue
 
-    rows_html += f"""
-<tr>
-  <td>{label}</td>
-  <td>{m['sampleCount']}</td>
-  <td>{r(m['errorPct'])}%</td>
-  <td>{r(m['meanResTime'])}</td>
-  <td>{r(m['minResTime'])}</td>
-  <td>{r(m['maxResTime'])}</td>
-  <td>{r(m['medianResTime'])}</td>
-  <td>{r(m['pct1ResTime'])}</td>
-  <td>{r(m['pct2ResTime'])}</td>
-  <td>{r(m['pct3ResTime'])}</td>
-  <td>{r(m['throughput'], 2)}</td>
-  <td>{r(m['receivedKBytesPerSec'], 2)}</td>
-  <td>{r(m['sentKBytesPerSec'], 2)}</td>
-</tr>
-"""
+    rows_html.append(f"""
+    <tr>
+      <td>{label}</td>
+      <td>{m['sampleCount']}</td>
+      <td>{r(m['errorPct'])}%</td>
+      <td>{r(m['meanResTime'])}</td>
+      <td>{r(m['minResTime'])}</td>
+      <td>{r(m['maxResTime'])}</td>
+      <td>{r(m['medianResTime'])}</td>
+      <td>{r(m['pct1ResTime'])}</td>
+      <td>{r(m['pct2ResTime'])}</td>
+      <td>{r(m['pct3ResTime'])}</td>
+      <td>{r(m['throughput'], 2)}</td>
+      <td>{r(m['receivedKBytesPerSec'], 2)}</td>
+      <td>{r(m['sentKBytesPerSec'], 2)}</td>
+    </tr>
+    """)
 
-    observations.append(
-        f"<li><strong>{label}</strong>: No errors observed. Response times and throughput were stable under load.</li>"
-    )
+    # Executive-level observation
+    if m.get("errorCount", 0) == 0:
+        observations.append(
+            f"<li><strong>{label}</strong>: No errors observed. "
+            "Response times and throughput remained stable under test load.</li>"
+        )
+    else:
+        observations.append(
+            f"<li><strong>{label}</strong>: Errors were observed during execution. "
+            "Further investigation is recommended.</li>"
+        )
+
+# --------------------------------------------------
+# Conditional Errors section (executive-safe)
+# --------------------------------------------------
+error_section = ""
+if total_error_count > 0:
+    error_section = f"""
+<h2>Errors Observed</h2>
+<p>
+A total of <strong>{total_error_count}</strong> request failures
+({r(total.get('errorPct', 0))}%) were observed during test execution.
+</p>
+<p>
+Errors are summarized at a high level here. Detailed error diagnostics
+are available in the full JMeter HTML dashboard.
+</p>
+"""
 
 # --------------------------------------------------
 # Final HTML
@@ -72,6 +101,7 @@ html = f"""
 <head>
 <meta charset="UTF-8">
 <title>API Performance Test Report</title>
+
 <style>
 body {{
     font-family: Arial, sans-serif;
@@ -119,8 +149,13 @@ td:first-child {{
 ul {{
     margin-top: 10px;
 }}
+
+li {{
+    margin-bottom: 6px;
+}}
 </style>
 </head>
+
 <body>
 
 <h1>API Performance Test Report</h1>
@@ -133,6 +168,7 @@ ul {{
 
 <h2>Statistics</h2>
 <table>
+<thead>
 <tr>
   <th>Label</th>
   <th># Samples</th>
@@ -148,8 +184,13 @@ ul {{
   <th>Received KB/s</th>
   <th>Sent KB/s</th>
 </tr>
-{rows_html}
+</thead>
+<tbody>
+{''.join(rows_html)}
+</tbody>
 </table>
+
+{error_section}
 
 <h2>Key Observations</h2>
 <ul>
@@ -160,6 +201,9 @@ ul {{
 </html>
 """
 
+# --------------------------------------------------
+# Write output
+# --------------------------------------------------
 with open(OUTPUT_HTML, "w") as f:
     f.write(html)
 
