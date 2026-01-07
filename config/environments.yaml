@@ -16,6 +16,8 @@ autoprod:
     allfeeds: "data/autoprod/allfeeds-payload.json"
     crimedata: "data/autoprod/crimedata-payload.json"
     riskintelligence: "data/autoprod/riskintelligence-payload.json"
+    crimeevents: "data/autoprod/crimeevents-payload.json"
+    feedpreview: "data/autoprod/feedpreview-payload.json"
 
 dev:
   baseUrl: "https://devapp.qaontic.com"
