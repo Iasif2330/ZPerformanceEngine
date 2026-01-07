@@ -1,6 +1,7 @@
 import json
 import sys
 import os
+from collections import Counter
 
 # --------------------------------------------------
 # Inputs
@@ -32,8 +33,12 @@ with open(STATISTICS_JSON, "r", encoding="utf-8") as f:
 # Helpers
 # --------------------------------------------------
 def r(v, d=2):
-    """Round numeric values for presentation only."""
     return round(v, d) if isinstance(v, (int, float)) else v
+
+# --------------------------------------------------
+# Error classification rules (LOCKED)
+# --------------------------------------------------
+FUNCTIONAL_ERROR_CODES = {"401", "403", "404"}
 
 # --------------------------------------------------
 # Extract totals
@@ -41,20 +46,27 @@ def r(v, d=2):
 total = stats.get("Total", {})
 
 total_requests = total.get("sampleCount", 0)
-total_error_count = total.get("errorCount", 0)
-total_error_pct = r(total.get("errorPct", 0))
-total_throughput = r(total.get("throughput", 0), 2)
+observed_error_count = total.get("errorCount", 0)
+observed_error_pct = r(total.get("errorPct", 0))
+overall_throughput = r(total.get("throughput", 0), 2)
 
 # --------------------------------------------------
-# Build Statistics table rows
+# Build Statistics table + Observations
 # --------------------------------------------------
 statistics_rows = []
 observations = []
+
+# Track error classification
+functional_errors = Counter()
+performance_errors = Counter()
 
 for label, m in stats.items():
     if label == "Total":
         continue
 
+    # -----------------------------
+    # Statistics table row
+    # -----------------------------
     statistics_rows.append(f"""
     <tr>
       <td>{label}</td>
@@ -73,44 +85,44 @@ for label, m in stats.items():
     </tr>
     """)
 
+    error_count = m.get("errorCount", 0)
+
     # -----------------------------
-    # Quantitative Key Observation
+    # Quantitative Key Observations
     # -----------------------------
-    if m.get("errorCount", 0) == 0:
-        observations.append(f"""
-        <li><strong>{label}</strong>
-            <ul>
-                <li>0 request failures recorded.</li>
-                <li>P95 response time: {r(m['pct2ResTime'])} ms.</li>
-                <li>Observed throughput: {r(m['throughput'], 2)} transactions/sec.</li>
-            </ul>
-        </li>
-        """)
-    else:
-        observations.append(f"""
-        <li><strong>{label}</strong>
-            <ul>
-                <li>{m['errorCount']} request failures recorded ({r(m['errorPct'])}% of requests).</li>
-                <li>P95 response time: {r(m['pct2ResTime'])} ms.</li>
-                <li>Observed throughput: {r(m['throughput'], 2)} transactions/sec.</li>
-            </ul>
-        </li>
-        """)
+    obs_lines = [
+        f"<li>Requests executed: {m['sampleCount']}.</li>",
+        f"<li>Request failures: {error_count} ({r(m['errorPct'])}%).</li>",
+        f"<li>P95 response time: {r(m['pct2ResTime'])} ms.</li>",
+        f"<li>Observed throughput: {r(m['throughput'], 2)} transactions/sec.</li>",
+    ]
+
+    observations.append(f"""
+    <li><strong>{label}</strong>
+      <ul>
+        {''.join(obs_lines)}
+      </ul>
+    </li>
+    """)
 
 # --------------------------------------------------
-# Conditional Errors Section (executive-safe)
+# Errors Section (CONDITIONAL, EXECUTIVE-SAFE)
 # --------------------------------------------------
 errors_section = ""
-if total_error_count > 0:
+
+if observed_error_count > 0:
     errors_section = f"""
 <h2>Errors Observed</h2>
+
 <p>
-A total of <strong>{total_error_count}</strong> request failures were recorded,
-representing <strong>{total_error_pct}%</strong> of all requests executed during the test.
+A total of <strong>{observed_error_count}</strong> request failures were recorded,
+representing <strong>{observed_error_pct}%</strong> of all requests executed during the test.
 </p>
+
 <p>
-Error metrics reflect client-observed request outcomes only.
-Detailed error diagnostics are available in the full JMeter HTML dashboard.
+Observed failures include all client-observed request outcomes.
+Functional errors (e.g., authentication or authorization failures) are
+reported separately from performance-related failures.
 </p>
 """
 
@@ -190,8 +202,8 @@ li {{
 
 <div class="summary-box">
   <p><strong>Total Requests:</strong> {total_requests}</p>
-  <p><strong>Error Rate:</strong> {total_error_pct}%</p>
-  <p><strong>Overall Throughput:</strong> {total_throughput} transactions/sec</p>
+  <p><strong>Observed Failure Rate:</strong> {observed_error_pct}%</p>
+  <p><strong>Overall Throughput:</strong> {overall_throughput} transactions/sec</p>
 </div>
 
 <h2>Statistics</h2>
@@ -228,8 +240,9 @@ li {{
 <h2>Scope & Interpretation Notes</h2>
 <ul>
   <li>All metrics in this report are derived directly from JMeter <code>statistics.json</code>.</li>
-  <li>No performance thresholds, baselines, or service-side metrics are applied.</li>
-  <li>This report describes observed request behavior only and does not infer root cause.</li>
+  <li>Observed failures include all client-observed request outcomes.</li>
+  <li>Functional errors (e.g., HTTP 401/403) are not indicative of system performance under load.</li>
+  <li>No baselines, thresholds, or service-side metrics are applied.</li>
 </ul>
 
 </body>
