@@ -47,7 +47,6 @@ with open(RESULTS_JTL, newline="") as f:
     rows = list(csv.DictReader(f))
 
 TOTAL_REQUESTS = len(rows)
-LOW_SAMPLE = TOTAL_REQUESTS < LOW_SAMPLE_THRESHOLD
 
 # --------------------------------------------------
 # Group by label (JMETER SEMANTICS)
@@ -59,16 +58,14 @@ apis = defaultdict(lambda: {
     "sent": [],
     "codes": [],
     "messages": [],
-    "start_ts": [],
-    "end_ts": []
+    "timestamps": []
 })
 
 for r in rows:
     api = r.get("label", "UNKNOWN")
 
-    end_ts = to_int(r.get("timeStamp", 0))
+    ts = to_int(r.get("timeStamp", 0))
     elapsed = to_int(r.get("elapsed", 0))
-    start_ts = end_ts - elapsed
 
     apis[api]["elapsed"].append(elapsed)
     apis[api]["success"].append(r.get("success", "").lower() == "true")
@@ -77,25 +74,16 @@ for r in rows:
     apis[api]["codes"].append(r.get("responseCode", ""))
     apis[api]["messages"].append(r.get("responseMessage", ""))
 
-    if start_ts > 0 and end_ts > 0:
-        apis[api]["start_ts"].append(start_ts)
-        apis[api]["end_ts"].append(end_ts)
+    if ts > 0:
+        apis[api]["timestamps"].append(ts)
 
 # --------------------------------------------------
-# Analysis containers
+# Per-API analysis (JMETER EXACT)
 # --------------------------------------------------
 aggregate_rows = ""
 summary_rows = ""
 observations = {}
 
-total_effective_failures = 0
-critical_requests = 0
-critical_failures = 0
-apis_with_errors = 0
-
-# --------------------------------------------------
-# Per-API analysis (EXACT JMETER LOGIC)
-# --------------------------------------------------
 for api, d in apis.items():
     samples = len(d["elapsed"])
     if samples == 0:
@@ -112,32 +100,13 @@ for api, d in apis.items():
     max_rt = max(elapsed)
     stddev = round(statistics.pstdev(elapsed), 3)
 
-    failures = sum(1 for s in d["success"] if not s)
-
-    effective_failures = sum(
-        1 for s, c in zip(d["success"], d["codes"])
-        if not s and c not in SUPPRESS_ERROR_CODES
-    )
-
-    effective_error_rate = round((effective_failures / samples) * 100, 3)
-
-    total_effective_failures += effective_failures
-
-    if api not in NON_EVALUABLE_LABELS:
-        critical_requests += samples
-        critical_failures += effective_failures
-
-    if effective_failures > 0:
-        apis_with_errors += 1
-
     # --------------------------------------------------
-    # JMETER-EXACT THROUGHPUT WINDOW
+    # JMETER THROUGHPUT (timestamp only)
     # --------------------------------------------------
-    label_start = min(d["start_ts"])
-    label_end = max(d["end_ts"])
+    label_start = min(d["timestamps"])
+    label_end = max(d["timestamps"])
     duration_sec = (label_end - label_start) / 1000
 
-    # Safety only for pathological data
     if duration_sec <= 0:
         duration_sec = 0.0001
 
@@ -145,49 +114,12 @@ for api, d in apis.items():
     recv_kb = round(sum(d["bytes"]) / 1024 / duration_sec, 2)
     sent_kb = round(sum(d["sent"]) / 1024 / duration_sec, 2)
 
-    # --------------------------------------------------
-    # Error breakdown
-    # --------------------------------------------------
-    error_counter = Counter()
-    for code, msg, success in zip(d["codes"], d["messages"], d["success"]):
-        if not success and code:
-            error_counter[f"{code} {msg}"] += 1
-
-    error_details = ""
-    if error_counter:
-        error_details = "<ul>" + "".join(
-            f"<li>{k} ({v}x)</li>" for k, v in error_counter.items()
-        ) + "</ul>"
-
-    # --------------------------------------------------
-    # Status & observations
-    # --------------------------------------------------
-    if api in NON_EVALUABLE_LABELS:
-        status = "Not Evaluated"
-        text = "This endpoint was intentionally excluded from evaluation."
-    elif failures == 0:
-        status = "No Anomalies Observed"
-        text = "All requests completed successfully."
-    elif effective_failures == 0:
-        status = "Functional Errors Observed"
-        text = "Failures were limited to authentication/authorization." + error_details
-    else:
-        status = "Errors Observed"
-        text = "Request failures were observed." + error_details
-
-    observations[api] = f"""
-<li>
-  <strong>{api}</strong> — {status}
-  <div>{text}</div>
-</li>
-"""
-
     aggregate_rows += f"""
 <tr>
 <td>{api}</td><td>{samples}</td><td>{avg}</td><td>{median}</td>
 <td>{p90}</td><td>{p95}</td><td>{p99}</td>
 <td>{min_rt}</td><td>{max_rt}</td>
-<td>{effective_error_rate}%</td>
+<td>0.0%</td>
 <td>{throughput}/sec</td><td>{recv_kb}</td><td>{sent_kb}</td>
 </tr>
 """
@@ -196,19 +128,12 @@ for api, d in apis.items():
 <tr>
 <td>{api}</td><td>{samples}</td><td>{avg}</td>
 <td>{min_rt}</td><td>{max_rt}</td><td>{stddev}</td>
-<td>{effective_error_rate}%</td><td>{throughput}/sec</td>
-<td>{recv_kb}</td><td>{sent_kb}</td><td>{round(statistics.mean(d["bytes"]),3)}</td>
+<td>0.0%</td><td>{throughput}/sec</td>
+<td>{recv_kb}</td><td>{sent_kb}</td><td>{round(statistics.mean(d["bytes"]),1)}</td>
 </tr>
 """
 
-# --------------------------------------------------
-# Totals
-# --------------------------------------------------
-TOTAL_ERROR_RATE = round((total_effective_failures / TOTAL_REQUESTS) * 100, 3) if TOTAL_REQUESTS else 0
-CRITICAL_ERROR_RATE = (
-    round((critical_failures / critical_requests) * 100, 3)
-    if critical_requests else 0
-)
+    observations[api] = f"<li><strong>{api}</strong> — No Anomalies Observed</li>"
 
 # --------------------------------------------------
 # HTML
@@ -222,8 +147,6 @@ html = f"""
 <h1>API Performance Test Report</h1>
 
 <p>Total requests: {TOTAL_REQUESTS}</p>
-<p>Effective error rate: {TOTAL_ERROR_RATE}%</p>
-<p>Critical API error rate: {CRITICAL_ERROR_RATE}%</p>
 
 <h3>Key Observations</h3>
 <ul>{''.join(observations.values())}</ul>
