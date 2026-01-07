@@ -14,7 +14,7 @@ OUTPUT_HTML = os.path.join(OUTPUT_DIR, "index.html")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # --------------------------------------------------
-# Config (FINAL, INTENT-BASED)
+# Config (FINAL, JTL-ONLY, INDUSTRY SAFE)
 # --------------------------------------------------
 SUPPRESS_ERROR_CODES = {"401", "403"}
 NON_EVALUABLE_LABELS = {"accepttac"}
@@ -43,10 +43,8 @@ def percentile(data, p):
 # --------------------------------------------------
 # Load JTL
 # --------------------------------------------------
-rows = []
 with open(RESULTS_JTL, newline="") as f:
-    reader = csv.DictReader(f)
-    rows = list(reader)
+    rows = list(csv.DictReader(f))
 
 TOTAL_REQUESTS = len(rows)
 LOW_SAMPLE = TOTAL_REQUESTS < LOW_SAMPLE_THRESHOLD
@@ -82,19 +80,20 @@ aggregate_rows = ""
 summary_rows = ""
 observations = {}
 
-total_effective_errors = 0
+total_effective_failures = 0
 critical_requests = 0
-critical_errors = 0
+critical_failures = 0
+apis_with_errors = 0
 
 # --------------------------------------------------
-# Per-API analysis
+# Per-API analysis (JTL-ONLY)
 # --------------------------------------------------
 for api, d in apis.items():
     samples = len(d["elapsed"])
-    elapsed = d["elapsed"]
-
     if samples == 0:
         continue
+
+    elapsed = d["elapsed"]
 
     avg = round(statistics.mean(elapsed))
     median = percentile(elapsed, 50)
@@ -105,23 +104,30 @@ for api, d in apis.items():
     max_rt = max(elapsed)
     stddev = round(statistics.pstdev(elapsed), 2)
 
-    failures = d["success"].count(False)
-    suppressed = sum(1 for c in d["codes"] if c in SUPPRESS_ERROR_CODES)
-    effective_errors = max(failures - suppressed, 0)
-    effective_error_rate = round((effective_errors / samples) * 100, 2)
+    failures = sum(1 for s in d["success"] if not s)
 
-    total_effective_errors += effective_errors
+    effective_failures = sum(
+        1 for s, c in zip(d["success"], d["codes"])
+        if not s and c not in SUPPRESS_ERROR_CODES
+    )
+
+    effective_error_rate = round((effective_failures / samples) * 100, 2)
+
+    total_effective_failures += effective_failures
 
     if api not in NON_EVALUABLE_LABELS:
         critical_requests += samples
-        critical_errors += effective_errors
+        critical_failures += effective_failures
+
+    if effective_failures > 0:
+        apis_with_errors += 1
 
     recv_kb = round(sum(d["bytes"]) / 1024 / duration_sec, 2)
     sent_kb = round(sum(d["sent"]) / 1024 / duration_sec, 2)
     throughput = round(samples / duration_sec, 2)
 
     # --------------------------------------------------
-    # Error breakdown (exact, JTL-backed)
+    # Error breakdown (exact JTL evidence)
     # --------------------------------------------------
     error_counter = Counter()
     for code, msg, success in zip(d["codes"], d["messages"], d["success"]):
@@ -135,35 +141,39 @@ for api, d in apis.items():
         ) + "</ul>"
 
     # --------------------------------------------------
-    # Status & observation
+    # Status (NEUTRAL, JTL-ONLY)
     # --------------------------------------------------
     if api in NON_EVALUABLE_LABELS:
-        status = "⚪ Not Evaluated"
+        status = "Not Evaluated"
         text = (
-            "This endpoint represents a technical or consent flow and was "
-            "intentionally excluded from performance evaluation."
+            "This endpoint represents a technical or consent-related flow and was "
+            "intentionally excluded from request-level evaluation."
         )
-    elif failures > 0 and failures == suppressed:
-        status = "🟡 Functional Failure"
+    elif failures == 0:
+        status = "No Anomalies Observed"
         text = (
-            "Authentication or authorization failures were observed. "
-            "These are functional issues and NOT related to performance."
-            + error_details
+            "All requests completed successfully. "
+            "No errors were observed in the JTL data."
         )
-    elif effective_errors > 0:
-        status = "🔴 Performance Failure"
+    elif effective_failures == 0:
+        status = "Functional Errors Observed"
         text = (
-            "Backend or network failures were observed impacting performance."
+            "Request failures were limited to authentication or authorization responses "
+            "(e.g., 401/403). These represent functional outcomes rather than performance behavior."
             + error_details
         )
     else:
-        status = "🟢 Healthy"
-        text = "Requests completed successfully with stable response times and no errors."
+        status = "Errors Observed"
+        text = (
+            "Request failures were observed in the JTL results under test load. "
+            "These outcomes reflect client-observed behavior only."
+            + error_details
+        )
 
     observations[api] = f"""
 <li class="obs-item">
   <div class="obs-api">{api}</div>
-  <div class="obs-status">{status}</div>
+  <div class="obs-status"><strong>Status:</strong> {status}</div>
   <div class="obs-text">{text}</div>
 </li>
 """
@@ -193,27 +203,29 @@ for api, d in apis.items():
 # --------------------------------------------------
 # Totals
 # --------------------------------------------------
-TOTAL_ERROR_RATE = round((total_effective_errors / TOTAL_REQUESTS) * 100, 2) if TOTAL_REQUESTS else 0
+TOTAL_ERROR_RATE = round((total_effective_failures / TOTAL_REQUESTS) * 100, 2) if TOTAL_REQUESTS else 0
 CRITICAL_ERROR_RATE = (
-    round((critical_errors / critical_requests) * 100, 2)
+    round((critical_failures / critical_requests) * 100, 2)
     if critical_requests else 0
 )
 
-low_sample_notice = (
-    f"<p><strong>⚠ Low sample size:</strong> This test contains fewer than "
-    f"{LOW_SAMPLE_THRESHOLD} total samples. Findings are indicative.</p>"
-    if LOW_SAMPLE else ""
-)
+indicative_notice = ""
+if LOW_SAMPLE:
+    indicative_notice = (
+        f"<p><strong>⚠ Indicative Results:</strong> "
+        f"Fewer than {LOW_SAMPLE_THRESHOLD} total samples were collected. "
+        "Findings should be interpreted with caution.</p>"
+    )
 
 # --------------------------------------------------
-# Final HTML
+# Final HTML (EXECUTIVE-GRADE)
 # --------------------------------------------------
 html = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Performance Test Report</title>
+<title>API Performance Test Report</title>
 <style>
 body {{
     background: #f4f4f4;
@@ -222,9 +234,9 @@ body {{
 }}
 .summary-box {{
     background: #fff;
-    padding: 15px;
+    padding: 18px;
     border-radius: 10px;
-    margin-bottom: 25px;
+    margin-bottom: 30px;
 }}
 table {{
     width: 100%;
@@ -237,23 +249,21 @@ th {{
     color: #fff;
     padding: 10px;
     font-size: 14px;
-    text-align: center;
 }}
 td {{
     padding: 8px;
     border-bottom: 1px solid #ddd;
     font-size: 13px;
     text-align: center;
-    vertical-align: middle;
 }}
 th:first-child,
 td:first-child {{
     text-align: left;
 }}
-.obs-item {{ margin-bottom: 14px; }}
+.obs-item {{ margin-bottom: 16px; }}
 .obs-api {{ font-weight: bold; }}
-.obs-status {{ margin-left: 8px; font-size: 13px; }}
-.obs-text {{ margin-left: 20px; font-size: 13px; }}
+.obs-status {{ margin-top: 4px; font-size: 13px; }}
+.obs-text {{ margin-left: 12px; font-size: 13px; }}
 </style>
 </head>
 <body>
@@ -261,10 +271,24 @@ td:first-child {{
 <h1>API Performance Test Report</h1>
 
 <div class="summary-box">
-{low_sample_notice}
+<p><strong>Summary</strong></p>
+<p>
+This report summarizes <strong>client-observed request behavior</strong> captured during test execution using JMeter JTL data.
+</p>
+
 <p><strong>Total requests:</strong> {TOTAL_REQUESTS}</p>
-<p><strong>Effective performance error rate:</strong> {TOTAL_ERROR_RATE}%</p>
-<p><strong>Critical API error rate (excluding login/accepttac):</strong> {CRITICAL_ERROR_RATE}%</p>
+<p><strong>APIs with observed errors:</strong> {apis_with_errors}</p>
+<p><strong>Effective request error rate:</strong> {TOTAL_ERROR_RATE}%</p>
+<p><strong>Critical API error rate:</strong> {CRITICAL_ERROR_RATE}%</p>
+
+{indicative_notice}
+
+<p><strong>Confidence & Scope</strong></p>
+<p>
+These findings reflect request-level outcomes only and do not attribute cause to backend services,
+infrastructure, or network conditions. Capacity and SLA conclusions require correlation with
+client host and service-side metrics.
+</p>
 
 <h4>Key Observations</h4>
 <ul>
@@ -272,7 +296,7 @@ td:first-child {{
 </ul>
 </div>
 
-<h2>Aggregate Report</h2>
+<h2>Aggregate Metrics</h2>
 <table>
 <tr>
 <th>Label</th><th># Samples</th><th>Avg</th><th>Median</th>
@@ -283,7 +307,7 @@ td:first-child {{
 {aggregate_rows}
 </table>
 
-<h2>Summary Report</h2>
+<h2>Summary Metrics</h2>
 <table>
 <tr>
 <th>Label</th><th># Samples</th><th>Avg</th>
