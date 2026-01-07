@@ -104,7 +104,7 @@ for api, d in apis.items():
     p99 = percentile(elapsed, 99)
     min_rt = min(elapsed)
     max_rt = max(elapsed)
-    stddev = round(statistics.pstdev(elapsed), 2)
+    stddev = round(statistics.pstdev(elapsed), 3)
 
     failures = sum(1 for s in d["success"] if not s)
 
@@ -113,7 +113,7 @@ for api, d in apis.items():
         if not s and c not in SUPPRESS_ERROR_CODES
     )
 
-    effective_error_rate = round((effective_failures / samples) * 100, 2)
+    effective_error_rate = round((effective_failures / samples) * 100, 3)
 
     total_effective_failures += effective_failures
 
@@ -135,9 +135,9 @@ for api, d in apis.items():
     else:
         api_duration = 1
 
-    throughput = round(samples / api_duration, 2)
-    recv_kb = round(sum(d["bytes"]) / 1024 / api_duration, 2)
-    sent_kb = round(sum(d["sent"]) / 1024 / api_duration, 2)
+    throughput = round(samples / api_duration, 3)
+    recv_kb = round(sum(d["bytes"]) / 1024 / api_duration, 3)
+    sent_kb = round(sum(d["sent"]) / 1024 / api_duration, 3)
 
     # --------------------------------------------------
     # Error breakdown
@@ -209,16 +209,16 @@ for api, d in apis.items():
 <td>{api}</td><td>{samples}</td><td>{avg}</td>
 <td>{min_rt}</td><td>{max_rt}</td><td>{stddev}</td>
 <td>{effective_error_rate}%</td><td>{throughput}/sec</td>
-<td>{recv_kb}</td><td>{sent_kb}</td><td>{round(statistics.mean(d["bytes"]),1)}</td>
+<td>{recv_kb}</td><td>{sent_kb}</td><td>{round(statistics.mean(d["bytes"]),3)}</td>
 </tr>
 """
 
 # --------------------------------------------------
 # Totals
 # --------------------------------------------------
-TOTAL_ERROR_RATE = round((total_effective_failures / TOTAL_REQUESTS) * 100, 2) if TOTAL_REQUESTS else 0
+TOTAL_ERROR_RATE = round((total_effective_failures / TOTAL_REQUESTS) * 100, 3) if TOTAL_REQUESTS else 0
 CRITICAL_ERROR_RATE = (
-    round((critical_failures / critical_requests) * 100, 2)
+    round((critical_failures / critical_requests) * 100, 3)
     if critical_requests else 0
 )
 
