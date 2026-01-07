@@ -26,9 +26,9 @@ profiles:
     apiLoopCount: 1
 
   - name: baseline-20x-extended
-    threads: 20
+    threads: 50
     rampup: 1
-    apiLoopCount: 10
+    apiLoopCount: 5
 
   - name: baseline-50x-extended
     threads: 50
