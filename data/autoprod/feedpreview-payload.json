@@ -1,0 +1,107 @@
+{
+  "previewWidget": {
+    "widgetType": "SPOT_CRIME"
+  },
+  "transientRequest": {
+    "filters": [
+      {
+        "field": "LEVEL_1",
+        "filterType": "IN",
+        "values": [
+          "US-_-L1_10",
+          "US-_-L1_13",
+          "US-_-L1_20",
+          "CA-_-L1_10",
+          "US-_-L1_17",
+          "US-_-L1_44",
+          "US-_-L1_33",
+          "US-_-L1_22",
+          "US-_-L1_39",
+          "US-_-L1_26",
+          "CA-_-L1_47",
+          "US-_-L1_23",
+          "US-_-L1_04",
+          "US-_-L1_16",
+          "US-_-L1_48",
+          "US-_-L1_08",
+          "US-_-L1_21",
+          "CA-_-L1_48",
+          "US-_-L1_34",
+          "US-_-L1_55",
+          "US-_-L1_53",
+          "US-_-L1_40",
+          "US-_-L1_18",
+          "US-_-L1_46",
+          "CA-_-L1_13",
+          "US-_-L1_54",
+          "US-_-L1_06",
+          "US-_-L1_45",
+          "US-_-L1_38",
+          "US-_-L1_11",
+          "US-_-L1_19",
+          "US-_-L1_27",
+          "US-_-L1_50",
+          "US-_-L1_47",
+          "US-_-L1_56",
+          "CA-_-L1_24",
+          "US-_-L1_24",
+          "US-_-L1_41",
+          "US-_-L1_31",
+          "US-_-L1_01",
+          "US-_-L1_49",
+          "US-_-L1_32",
+          "CA-_-L1_11",
+          "CA-_-L1_12",
+          "US-_-L1_37",
+          "US-_-L1_09",
+          "US-_-L1_42",
+          "US-_-L1_36",
+          "US-_-L1_05",
+          "US-_-L1_28",
+          "US-_-L1_29",
+          "US-_-L1_30",
+          "US-_-L1_25",
+          "US-_-L1_51",
+          "CA-_-L1_46",
+          "US-_-L1_12",
+          "US-_-L1_35"
+        ]
+      }
+    ],
+    "timeFilter": {
+      "expression": "LIFETIME"
+    },
+    "pageInfo": {
+      "page": 0,
+      "size": 0
+    },
+    "timeZoneId": "Asia/Calcutta",
+    "tzOffset": -19800000,
+    "groups": [
+      {
+        "key": "LEVEL_1",
+        "field": "LEVEL_1",
+        "type": "FIELD",
+        "childGroups": [
+          {
+            "key": "SPOT_CRIME_CRIME_CATEGORY",
+            "field": "SPOT_CRIME_CRIME_CATEGORY",
+            "type": "FIELD"
+          }
+        ],
+        "projections": [
+          {
+            "key": "GEO_CENTROID",
+            "field": "COORDINATES_MEASUREMENT",
+            "aggFunction": "GEO_CENTROID"
+          }
+        ],
+        "pageInfo": {
+          "size": 10000,
+          "page": 0
+        }
+      }
+    ],
+    "key": "199"
+  }
+}
