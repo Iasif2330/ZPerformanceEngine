@@ -50,21 +50,7 @@ TOTAL_REQUESTS = len(rows)
 LOW_SAMPLE = TOTAL_REQUESTS < LOW_SAMPLE_THRESHOLD
 
 # --------------------------------------------------
-# GLOBAL TEST DURATION (JMeter semantics)
-# --------------------------------------------------
-all_timestamps = [
-    to_int(r.get("timeStamp", 0))
-    for r in rows
-    if r.get("timeStamp")
-]
-
-GLOBAL_DURATION_SEC = (
-    (max(all_timestamps) - min(all_timestamps)) / 1000
-    if all_timestamps else 1
-)
-
-# --------------------------------------------------
-# Group by label
+# Group by label (JMETER SEMANTICS)
 # --------------------------------------------------
 apis = defaultdict(lambda: {
     "elapsed": [],
@@ -72,17 +58,28 @@ apis = defaultdict(lambda: {
     "bytes": [],
     "sent": [],
     "codes": [],
-    "messages": []
+    "messages": [],
+    "start_ts": [],
+    "end_ts": []
 })
 
 for r in rows:
     api = r.get("label", "UNKNOWN")
-    apis[api]["elapsed"].append(to_int(r.get("elapsed", 0)))
+
+    end_ts = to_int(r.get("timeStamp", 0))
+    elapsed = to_int(r.get("elapsed", 0))
+    start_ts = end_ts - elapsed
+
+    apis[api]["elapsed"].append(elapsed)
     apis[api]["success"].append(r.get("success", "").lower() == "true")
     apis[api]["bytes"].append(to_int(r.get("bytes", 0)))
     apis[api]["sent"].append(to_int(r.get("sentBytes", 0)))
     apis[api]["codes"].append(r.get("responseCode", ""))
     apis[api]["messages"].append(r.get("responseMessage", ""))
+
+    if start_ts > 0 and end_ts > 0:
+        apis[api]["start_ts"].append(start_ts)
+        apis[api]["end_ts"].append(end_ts)
 
 # --------------------------------------------------
 # Analysis containers
@@ -97,7 +94,7 @@ critical_failures = 0
 apis_with_errors = 0
 
 # --------------------------------------------------
-# Per-API analysis (MATCHES JMETER)
+# Per-API analysis (EXACT JMETER LOGIC)
 # --------------------------------------------------
 for api, d in apis.items():
     samples = len(d["elapsed"])
@@ -134,11 +131,19 @@ for api, d in apis.items():
         apis_with_errors += 1
 
     # --------------------------------------------------
-    # JMETER-EXACT THROUGHPUT & NETWORK RATE
+    # JMETER-EXACT THROUGHPUT WINDOW
     # --------------------------------------------------
-    throughput = round(samples / GLOBAL_DURATION_SEC, 2)
-    recv_kb = round(sum(d["bytes"]) / 1024 / GLOBAL_DURATION_SEC, 2)
-    sent_kb = round(sum(d["sent"]) / 1024 / GLOBAL_DURATION_SEC, 2)
+    label_start = min(d["start_ts"])
+    label_end = max(d["end_ts"])
+    duration_sec = (label_end - label_start) / 1000
+
+    # Safety only for pathological data
+    if duration_sec <= 0:
+        duration_sec = 0.0001
+
+    throughput = round(samples / duration_sec, 2)
+    recv_kb = round(sum(d["bytes"]) / 1024 / duration_sec, 2)
+    sent_kb = round(sum(d["sent"]) / 1024 / duration_sec, 2)
 
     # --------------------------------------------------
     # Error breakdown
@@ -159,34 +164,21 @@ for api, d in apis.items():
     # --------------------------------------------------
     if api in NON_EVALUABLE_LABELS:
         status = "Not Evaluated"
-        text = (
-            "This endpoint represents a technical or consent-related flow and was "
-            "intentionally excluded from request-level evaluation."
-        )
+        text = "This endpoint was intentionally excluded from evaluation."
     elif failures == 0:
         status = "No Anomalies Observed"
-        text = (
-            "All requests completed successfully with stable response times "
-            "and no observed errors."
-        )
+        text = "All requests completed successfully."
     elif effective_failures == 0:
         status = "Functional Errors Observed"
-        text = (
-            "Request failures were limited to authentication or authorization responses."
-            + error_details
-        )
+        text = "Failures were limited to authentication/authorization." + error_details
     else:
         status = "Errors Observed"
-        text = (
-            "Request failures were observed under test load."
-            + error_details
-        )
+        text = "Request failures were observed." + error_details
 
     observations[api] = f"""
-<li class="obs-item">
-  <div class="obs-api">{api}</div>
-  <div class="obs-status"><strong>Status:</strong> {status}</div>
-  <div class="obs-text">{text}</div>
+<li>
+  <strong>{api}</strong> — {status}
+  <div>{text}</div>
 </li>
 """
 
@@ -218,88 +210,41 @@ CRITICAL_ERROR_RATE = (
     if critical_requests else 0
 )
 
-indicative_notice = ""
-if LOW_SAMPLE:
-    indicative_notice = (
-        f"<p><strong>⚠ Indicative Results:</strong> "
-        f"Fewer than {LOW_SAMPLE_THRESHOLD} total samples were collected.</p>"
-    )
-
 # --------------------------------------------------
-# Final HTML
+# HTML
 # --------------------------------------------------
 html = f"""
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>API Performance Test Report</title>
-<style>
-body {{
-    background: #f4f4f4;
-    font-family: Arial, sans-serif;
-    padding: 20px;
-}}
-.summary-box {{
-    background: #fff;
-    padding: 18px;
-    border-radius: 10px;
-    margin-bottom: 30px;
-}}
-table {{
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 40px;
-}}
-th {{
-    background: #273043;
-    color: #fff;
-    padding: 10px;
-}}
-td {{
-    padding: 8px;
-    border-bottom: 1px solid #ddd;
-    text-align: center;
-}}
-th:first-child,
-td:first-child {{
-    text-align: left;
-}}
-</style>
-</head>
+<html>
+<head><title>API Performance Test Report</title></head>
 <body>
 
 <h1>API Performance Test Report</h1>
 
-<div class="summary-box">
-<p><strong>Total requests:</strong> {TOTAL_REQUESTS}</p>
-<p><strong>Effective error rate:</strong> {TOTAL_ERROR_RATE}%</p>
-<p><strong>Critical API error rate:</strong> {CRITICAL_ERROR_RATE}%</p>
-{indicative_notice}
+<p>Total requests: {TOTAL_REQUESTS}</p>
+<p>Effective error rate: {TOTAL_ERROR_RATE}%</p>
+<p>Critical API error rate: {CRITICAL_ERROR_RATE}%</p>
 
-<h4>Key Observations</h4>
-<ul>
-{''.join(observations.values())}
-</ul>
-</div>
+<h3>Key Observations</h3>
+<ul>{''.join(observations.values())}</ul>
 
 <h2>Aggregate Metrics</h2>
-<table>
+<table border="1">
 <tr>
-<th>Label</th><th># Samples</th><th>Avg</th><th>Median</th>
+<th>Label</th><th>#</th><th>Avg</th><th>Median</th>
 <th>P90</th><th>P95</th><th>P99</th>
-<th>Min</th><th>Max</th><th>Error %</th>
-<th>Throughput</th><th>Recv KB/s</th><th>Sent KB/s</th>
+<th>Min</th><th>Max</th><th>Error%</th>
+<th>TPS</th><th>Recv KB/s</th><th>Sent KB/s</th>
 </tr>
 {aggregate_rows}
 </table>
 
 <h2>Summary Metrics</h2>
-<table>
+<table border="1">
 <tr>
-<th>Label</th><th># Samples</th><th>Avg</th>
-<th>Min</th><th>Max</th><th>Std Dev</th>
-<th>Error %</th><th>Throughput</th>
+<th>Label</th><th>#</th><th>Avg</th>
+<th>Min</th><th>Max</th><th>StdDev</th>
+<th>Error%</th><th>TPS</th>
 <th>Recv KB/s</th><th>Sent KB/s</th><th>Avg Bytes</th>
 </tr>
 {summary_rows}
