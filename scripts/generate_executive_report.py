@@ -14,7 +14,7 @@ OUTPUT_HTML = os.path.join(OUTPUT_DIR, "index.html")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # --------------------------------------------------
-# Config (FINAL, JTL-ONLY, INDUSTRY SAFE)
+# Config
 # --------------------------------------------------
 SUPPRESS_ERROR_CODES = {"401", "403"}
 NON_EVALUABLE_LABELS = {"accepttac"}
@@ -41,7 +41,7 @@ def percentile(data, p):
     return round(data[f] + (data[c] - data[f]) * (k - f))
 
 # --------------------------------------------------
-# Load Results
+# Load JTL
 # --------------------------------------------------
 with open(RESULTS_JTL, newline="") as f:
     rows = list(csv.DictReader(f))
@@ -50,7 +50,21 @@ TOTAL_REQUESTS = len(rows)
 LOW_SAMPLE = TOTAL_REQUESTS < LOW_SAMPLE_THRESHOLD
 
 # --------------------------------------------------
-# Group by API label
+# GLOBAL TEST DURATION (JMeter semantics)
+# --------------------------------------------------
+all_timestamps = [
+    to_int(r.get("timeStamp", 0))
+    for r in rows
+    if r.get("timeStamp")
+]
+
+GLOBAL_DURATION_SEC = (
+    (max(all_timestamps) - min(all_timestamps)) / 1000
+    if all_timestamps else 1
+)
+
+# --------------------------------------------------
+# Group by label
 # --------------------------------------------------
 apis = defaultdict(lambda: {
     "elapsed": [],
@@ -58,22 +72,17 @@ apis = defaultdict(lambda: {
     "bytes": [],
     "sent": [],
     "codes": [],
-    "messages": [],
-    "timestamps": []
+    "messages": []
 })
 
 for r in rows:
     api = r.get("label", "UNKNOWN")
-    ts = to_int(r.get("timeStamp", 0))
-
     apis[api]["elapsed"].append(to_int(r.get("elapsed", 0)))
     apis[api]["success"].append(r.get("success", "").lower() == "true")
     apis[api]["bytes"].append(to_int(r.get("bytes", 0)))
     apis[api]["sent"].append(to_int(r.get("sentBytes", 0)))
     apis[api]["codes"].append(r.get("responseCode", ""))
     apis[api]["messages"].append(r.get("responseMessage", ""))
-    if ts:
-        apis[api]["timestamps"].append(ts)
 
 # --------------------------------------------------
 # Analysis containers
@@ -88,7 +97,7 @@ critical_failures = 0
 apis_with_errors = 0
 
 # --------------------------------------------------
-# Per-API analysis
+# Per-API analysis (MATCHES JMETER)
 # --------------------------------------------------
 for api, d in apis.items():
     samples = len(d["elapsed"])
@@ -125,19 +134,11 @@ for api, d in apis.items():
         apis_with_errors += 1
 
     # --------------------------------------------------
-    # Per-API active window throughput (FIXED)
+    # JMETER-EXACT THROUGHPUT & NETWORK RATE
     # --------------------------------------------------
-    if d["timestamps"]:
-        api_duration = (max(d["timestamps"]) - min(d["timestamps"])) / 1000
-        # Guard only against true zero
-        if api_duration <= 0:
-            api_duration = 0.001
-    else:
-        api_duration = 1
-
-    throughput = round(samples / api_duration, 3)
-    recv_kb = round(sum(d["bytes"]) / 1024 / api_duration, 3)
-    sent_kb = round(sum(d["sent"]) / 1024 / api_duration, 3)
+    throughput = round(samples / GLOBAL_DURATION_SEC, 2)
+    recv_kb = round(sum(d["bytes"]) / 1024 / GLOBAL_DURATION_SEC, 2)
+    sent_kb = round(sum(d["sent"]) / 1024 / GLOBAL_DURATION_SEC, 2)
 
     # --------------------------------------------------
     # Error breakdown
@@ -154,7 +155,7 @@ for api, d in apis.items():
         ) + "</ul>"
 
     # --------------------------------------------------
-    # Status & Observations (NO explicit JTL mention)
+    # Status & observations
     # --------------------------------------------------
     if api in NON_EVALUABLE_LABELS:
         status = "Not Evaluated"
@@ -171,15 +172,13 @@ for api, d in apis.items():
     elif effective_failures == 0:
         status = "Functional Errors Observed"
         text = (
-            "Request failures were limited to authentication or authorization responses "
-            "(e.g., 401/403). These represent functional outcomes rather than performance behavior."
+            "Request failures were limited to authentication or authorization responses."
             + error_details
         )
     else:
         status = "Errors Observed"
         text = (
-            "Request failures were observed under test load. "
-            "These outcomes reflect client-observed behavior only."
+            "Request failures were observed under test load."
             + error_details
         )
 
@@ -191,9 +190,6 @@ for api, d in apis.items():
 </li>
 """
 
-    # --------------------------------------------------
-    # Tables
-    # --------------------------------------------------
     aggregate_rows += f"""
 <tr>
 <td>{api}</td><td>{samples}</td><td>{avg}</td><td>{median}</td>
@@ -226,8 +222,7 @@ indicative_notice = ""
 if LOW_SAMPLE:
     indicative_notice = (
         f"<p><strong>⚠ Indicative Results:</strong> "
-        f"Fewer than {LOW_SAMPLE_THRESHOLD} total samples were collected. "
-        "Findings should be interpreted with caution.</p>"
+        f"Fewer than {LOW_SAMPLE_THRESHOLD} total samples were collected.</p>"
     )
 
 # --------------------------------------------------
@@ -255,28 +250,21 @@ table {{
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 40px;
-    table-layout: fixed;
 }}
 th {{
     background: #273043;
     color: #fff;
     padding: 10px;
-    font-size: 14px;
 }}
 td {{
     padding: 8px;
     border-bottom: 1px solid #ddd;
-    font-size: 13px;
     text-align: center;
 }}
 th:first-child,
 td:first-child {{
     text-align: left;
 }}
-.obs-item {{ margin-bottom: 16px; }}
-.obs-api {{ font-weight: bold; }}
-.obs-status {{ margin-top: 4px; font-size: 13px; }}
-.obs-text {{ margin-left: 12px; font-size: 13px; }}
 </style>
 </head>
 <body>
@@ -284,24 +272,10 @@ td:first-child {{
 <h1>API Performance Test Report</h1>
 
 <div class="summary-box">
-<p><strong>Summary</strong></p>
-<p>
-This report summarizes <strong>client-observed request behavior</strong> captured during test execution.
-</p>
-
 <p><strong>Total requests:</strong> {TOTAL_REQUESTS}</p>
-<p><strong>APIs with observed errors:</strong> {apis_with_errors}</p>
-<p><strong>Effective request error rate:</strong> {TOTAL_ERROR_RATE}%</p>
+<p><strong>Effective error rate:</strong> {TOTAL_ERROR_RATE}%</p>
 <p><strong>Critical API error rate:</strong> {CRITICAL_ERROR_RATE}%</p>
-
 {indicative_notice}
-
-<p><strong>Confidence & Scope</strong></p>
-<p>
-These findings reflect request-level outcomes only and do not attribute cause to backend services,
-infrastructure, or network conditions. Capacity and SLA conclusions require correlation with
-client host and service-side metrics.
-</p>
 
 <h4>Key Observations</h4>
 <ul>
