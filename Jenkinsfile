@@ -161,7 +161,7 @@ ${cliArgs}
                       -w ${WORKDIR} \
                       ${IMAGE_NAME} \
                       python3 scripts/generate_executive_report.py \
-                        output/results.jtl \
+                        output/dashboard/statistics.json \
                         output/executive
                 """
             }
