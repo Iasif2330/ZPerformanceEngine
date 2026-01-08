@@ -579,6 +579,8 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
                   0
                 )
 
+                // normalize name to safe var key (replace non-alphanum with underscore)
+                def norm = name.replaceAll(/[^A-Za-z0-9]/, '_')
                 // Always set normalized var for placeholder-based CookieManager entries
                 vars.put('COOKIE_' + norm, value)
 
@@ -602,10 +604,26 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
                                 tp.traverse { el ->
                                     try {
                                         if (el instanceof org.apache.jmeter.protocol.http.control.CookieManager) {
-                                            // ensure no duplicate
-                                            def existing = el.getCookies().findAll { it.getName() == name }
-                                            existing.each { el.getCookies().remove(it) }
-                                            el.add(cookie)
+                                          // ensure no duplicate
+                                          def existing = el.getCookies().findAll { it.getName() == name }
+                                          existing.each { el.getCookies().remove(it) }
+                                          el.add(cookie)
+
+                                          // Attempt to refresh JMeter GUI so Cookie Manager table shows updated values
+                                          try {
+                                            def gp = org.apache.jmeter.gui.GuiPackage.getInstance()
+                                            if (gp != null) {
+                                              javax.swing.SwingUtilities.invokeLater({ ->
+                                                try {
+                                                  gp.getMainFrame()?.repaint()
+                                                } catch (re) {
+                                                  // ignore GUI repaint failures
+                                                }
+                                              } as Runnable)
+                                            }
+                                          } catch (guiEx) {
+                                            // ignore GUI refresh failures
+                                          }
                                         }
                                     } catch (ee) {
                                         // ignore individual element failures
