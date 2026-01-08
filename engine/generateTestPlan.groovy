@@ -460,6 +460,22 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
     [code302: "302"]
 )
           hashTree()
+          // LOGIN SAMPLER
+HTTPSamplerProxy( ... )
+
+hashTree {
+
+  HeaderManager(...)
+  hashTree()
+
+  buildResponseAssertion(...)
+  hashTree()
+
+  // 👇 THIS IS WHAT YOU JUST ADDED
+  JSR223PostProcessor(...)
+  hashTree()
+}
+
         }
 
         // OTHER APIs
