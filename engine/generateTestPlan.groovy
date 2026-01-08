@@ -146,13 +146,6 @@ def baseUrl  = envConfig[envName].baseUrl
 def parsed   = baseUrl.replace("https://","").replace("http://","")
 def domain   = parsed.contains("/") ? parsed.substring(0, parsed.indexOf("/")) : parsed
 def basePath = parsed.contains("/") ? parsed.substring(parsed.indexOf("/")) : ""
-// ===================================================================
-// Resolve OCSC cookie value (must match apiHeaders.ocsh)
-// ===================================================================
-def ocscValue = headersConfig["apiHeaders"]?.ocsh
-if (ocscValue != null && ocscValue.toString().trim() == "") {
-    ocscValue = null
-}
 
 // ===================================================================
 // def resultsDir = new File("output/results")
@@ -228,18 +221,6 @@ apis = [loginApi] + apis
 
 // ⭐ Build otherApis correctly AFTER fixing order
 def otherApis = apis.drop(1)
-// ===================================================================
-// Determine if OCSC cookie is required for this run
-// ===================================================================
-def requiresOcsc =
-    (loginApi?.requiresOcsc == true) ||
-    otherApis.any { it.requiresOcsc == true }
-
-if (requiresOcsc && !ocscValue) {
-    throw new IllegalStateException(
-        "API requires OCSC cookie, but apiHeaders.ocsh is missing"
-    )
-}
 
 // Update final name list
 selectedApiNames = apis.collect { it.name }
@@ -369,51 +350,10 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
           testclass:"CookieManager",
           testname:"Cookie Manager",
           enabled:"true"
-      ) {
-        boolProp(name:"CookieManager.clearEachIteration","false")
-
-          collectionProp(name:"CookieManager.cookies") {
-            // Pre-populate expected cookies so they appear in GUI and can be updated at runtime
-            elementProp(name:"auth", elementType:"Cookie") {
-              stringProp(name:"Cookie.name",  "auth")
-              stringProp(name:"Cookie.value", '${COOKIE_auth}')
-              stringProp(name:"Cookie.domain", domain)
-              stringProp(name:"Cookie.path",   "/rest/web/current/action/execute")
-              boolProp(name:"Cookie.secure",   "false")
-              boolProp(name:"Cookie.httpOnly","false")
-            }
-
-            elementProp(name:"ouch", elementType:"Cookie") {
-              stringProp(name:"Cookie.name",  "ouch")
-              stringProp(name:"Cookie.value", '${COOKIE_ouch}')
-              stringProp(name:"Cookie.domain", domain)
-              stringProp(name:"Cookie.path",   "/rest/web/current/action/execute")
-              boolProp(name:"Cookie.secure",   "false")
-              boolProp(name:"Cookie.httpOnly","false")
-            }
-
-            elementProp(name:"auth-session-ext", elementType:"Cookie") {
-              stringProp(name:"Cookie.name",  "auth-session-ext")
-              stringProp(name:"Cookie.value", '${COOKIE_auth_session_ext}')
-              stringProp(name:"Cookie.domain", domain)
-              stringProp(name:"Cookie.path",   "/rest/web/current/action/execute")
-              boolProp(name:"Cookie.secure",   "false")
-              boolProp(name:"Cookie.httpOnly","false")
-            }
-
-            // Inject OCSC initial value from config so it shows up before login (or defer to var)
-            elementProp(name:"ocsc", elementType:"Cookie") {
-              stringProp(name:"Cookie.name",  "ocsc")
-              stringProp(name:"Cookie.value", ocscValue ?: '${COOKIE_ocsc}')
-              stringProp(name:"Cookie.domain", domain)
-              stringProp(name:"Cookie.path",   "/rest/web/current/action/execute")
-              boolProp(name:"Cookie.secure",   "false")
-              boolProp(name:"Cookie.httpOnly","false")
-            }
-          }
+        ) {
+          boolProp(name:"CookieManager.clearEachIteration","false")
         }
-      }
-    hashTree()
+        hashTree()
 
         // LOGIN SAMPLER
         def login = loginApi
@@ -427,8 +367,8 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
           testname: login.name,
           enabled:"true"
         ) {
-          boolProp(name:"HTTPSampler.follow_redirects", "true")
-          boolProp(name:"HTTPSampler.auto_redirects",  "true")
+          boolProp(name:"HTTPSampler.follow_redirects", "false")
+          boolProp(name:"HTTPSampler.auto_redirects",  "false")
           boolProp(name:"HTTPSampler.image_parser", "false")
           boolProp(name:"HTTPSampler.concurrentDwn", "false")
           stringProp(name:"HTTPSampler.domain", domain)
@@ -480,135 +420,15 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
             hashTree()
           }
           // === Assertions for LOGIN ===
-            buildResponseAssertion(
-        delegate,
-        "Login Response Code Assertion",
-        2,
-        2,
-        [code302: "302"]
-      )
-            hashTree()
-
-            // ============================================================
-            // FORCE COPY LOGIN RESPONSE COOKIES INTO COOKIE MANAGER
-            // ============================================================
-            JSR223PostProcessor(
-            guiclass:"TestBeanGUI",
-            testclass:"JSR223PostProcessor",
-            testname:"Persist Login Cookies",
-            enabled:"true"
-            ) {
-            stringProp(name:"scriptLanguage", "groovy")
-            stringProp(name:"script", '''
-          import org.apache.jmeter.protocol.http.control.Cookie
-          import org.apache.jmeter.protocol.http.control.CookieManager
-
-          CookieManager cm = null
-
-          // We'll rely on writing vars and updating GUI CookieManager via GuiPackage (if available).
-          // Avoid calling ctx.getEngine().getTestPlan() directly because it's not available in all runtime modes.
-
-          // Read Set-Cookie headers from LOGIN response
-          def headers = prev.getResponseHeaders()
-          if (headers == null) {
-            log.warn('No response headers found on previous sample')
-          } else {
-            def setCookieLines = headers.readLines().findAll { it.toLowerCase().startsWith("set-cookie:") }
-            log.info('JSR223: Found Set-Cookie header count: ' + setCookieLines.size())
-            setCookieLines.each { line ->
-
-              // Strip "Set-Cookie:"
-              def cookieDef = line.substring(11).trim()
-
-              // Split name=value
-              def parts = cookieDef.split(";", 2)
-              def nameValue = parts[0].split("=", 2)
-
-              if (nameValue.length != 2) {
-                log.debug('Skipping malformed set-cookie line: ' + line)
-                return
-              }
-
-              def name  = nameValue[0].trim()
-              def value = nameValue[1].trim()
-
-                def cookie = new Cookie(
-                  name,
-                  value,
-                  prev.getURL().getHost(),
-                  "/rest/web/current/action/execute",
-                  false,
-                  0
-                )
-
-                // normalize name to safe var key (replace non-alphanum with underscore)
-                def norm = name.replaceAll(/[^A-Za-z0-9]/, '_')
-                // Always set normalized var for placeholder-based CookieManager entries
-                vars.put('COOKIE_' + norm, value)
-
-                if (cm != null) {
-                    try {
-                        // Remove any existing cookies with same name (avoid duplicates)
-                        try {
-                            def toRemove = cm.getCookies().findAll { it.getName() == name }
-                            toRemove.each { cm.getCookies().remove(it) }
-                        } catch (inner) {
-                            // ignore
-                        }
-
-                        cm.add(cookie)
-                        log.info("✅ Persisted login cookie into runtime CookieManager: " + name + "=" + value)
-
-// Additionally, attempt to update any CookieManager TestElement instances in the GUI test plan (if GUI available)
-                        try {
-                            def gp = org.apache.jmeter.gui.GuiPackage.getInstance()
-                            if (gp != null) {
-                                def root = gp.getTreeModel()?.getTestPlan()
-                                if (root != null) {
-                                    root.traverse { el ->
-                                        try {
-                                            if (el instanceof org.apache.jmeter.protocol.http.control.CookieManager) {
-                                                // ensure no duplicate
-                                                def existing = el.getCookies().findAll { it.getName() == name }
-                                                existing.each { el.getCookies().remove(it) }
-                                                // use getCookies().add to ensure proper type
-                                                el.getCookies().add(cookie)
-                                                log.info('✅ Updated GUI CookieManager entry: ' + name + '=' + value)
-
-                                                // GUI refresh on EDT so table updates
-                                                javax.swing.SwingUtilities.invokeLater({ ->
-                                                    try {
-                                                        gp.getMainFrame()?.repaint()
-                                                    } catch (re) {
-                                                        // ignore GUI repaint failures
-                                                    }
-                                                } as Runnable)
-                                            }
-                                        } catch (ee) {
-                                            // ignore individual element failures
-                                        }
-                                    }
-                                }
-                            }
-                        } catch (e2) {
-                            // ignore
-                        }
-
-                    } catch (e) {
-                        log.error('Failed to add cookie to CookieManager: ' + e.toString())
-                    }
-                } else {
-                    log.info('Runtime CookieManager not found; cookie stored in vars: COOKIE_' + norm)
-                }
-              }
-          }
-        ''')
-            }
-            hashTree()
-
-            // LOGIN SAMPLER
-
-          }
+          buildResponseAssertion(
+    delegate,
+    "Login Response Code Assertion",
+    2,
+    2,
+    [code302: "302"]
+)
+          hashTree()
+        }
 
         // OTHER APIs
         otherApis.each { api ->
