@@ -372,7 +372,6 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
       ) {
         boolProp(name:"CookieManager.clearEachIteration","false")
 
-        if (requiresOcsc) {
           collectionProp(name:"CookieManager.cookies") {
             // Pre-populate expected cookies so they appear in GUI and can be updated at runtime
             elementProp(name:"auth", elementType:"Cookie") {
@@ -402,10 +401,10 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
               boolProp(name:"Cookie.httpOnly","false")
             }
 
-            // Inject OCSC initial value from config so it shows up before login
+            // Inject OCSC initial value from config so it shows up before login (or defer to var)
             elementProp(name:"ocsc", elementType:"Cookie") {
               stringProp(name:"Cookie.name",  "ocsc")
-              stringProp(name:"Cookie.value", ocscValue ?: "")
+              stringProp(name:"Cookie.value", ocscValue ?: '${COOKIE_ocsc}')
               stringProp(name:"Cookie.domain", domain)
               stringProp(name:"Cookie.path",   "/rest/web/current/action/execute")
               boolProp(name:"Cookie.secure",   "false")
@@ -506,54 +505,17 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
 
           CookieManager cm = null
 
-          // Try several strategies to locate the runtime CookieManager instance
-          try {
-            // 1) traverse test plan tree if available
-            def tp = ctx.getEngine()?.getTestPlan()
-            if (tp != null) {
-              try {
-                tp.traverse { el ->
-                  if (el instanceof CookieManager) {
-                    cm = el
-                  } else if (el?.class?.name?.toLowerCase()?.contains('cookiemanager')) {
-                    cm = el
-                  }
-                }
-              } catch (e) {
-                // ignore traverse failures
-              }
-            }
-
-            // 2) try thread-local lookup (best-effort)
-            if (cm == null) {
-              try {
-                def threadCtx = ctx.getThread()
-                if (threadCtx != null && threadCtx.getThreadGroup() != null) {
-                  // iterate test elements attached to the thread group's children
-                  // best-effort only — may not find CookieManager
-                  // no-op placeholder for more advanced traversal if needed
-                }
-              } catch (e) {
-                // ignore
-              }
-            }
-
-          } catch (e) {
-            log.warn('Error while locating CookieManager: ' + e.toString())
-          }
-
-          if (cm == null) {
-            log.error("❌ CookieManager not found in test plan/runtime — cookies will not be persisted to GUI Cookie Manager")
-          }
+          // We'll rely on writing vars and updating GUI CookieManager via GuiPackage (if available).
+          // Avoid calling ctx.getEngine().getTestPlan() directly because it's not available in all runtime modes.
 
           // Read Set-Cookie headers from LOGIN response
           def headers = prev.getResponseHeaders()
           if (headers == null) {
             log.warn('No response headers found on previous sample')
           } else {
-            headers.readLines()
-              .findAll { it.toLowerCase().startsWith("set-cookie:") }
-              .each { line ->
+            def setCookieLines = headers.readLines().findAll { it.toLowerCase().startsWith("set-cookie:") }
+            log.info('JSR223: Found Set-Cookie header count: ' + setCookieLines.size())
+            setCookieLines.each { line ->
 
               // Strip "Set-Cookie:"
               def cookieDef = line.substring(11).trim()
@@ -597,36 +559,34 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
                         cm.add(cookie)
                         log.info("✅ Persisted login cookie into runtime CookieManager: " + name + "=" + value)
 
-                        // Additionally, attempt to update any CookieManager TestElement instances in the test plan
+// Additionally, attempt to update any CookieManager TestElement instances in the GUI test plan (if GUI available)
                         try {
-                            def tp = ctx.getEngine()?.getTestPlan()
-                            if (tp != null) {
-                                tp.traverse { el ->
-                                    try {
-                                        if (el instanceof org.apache.jmeter.protocol.http.control.CookieManager) {
-                                          // ensure no duplicate
-                                          def existing = el.getCookies().findAll { it.getName() == name }
-                                          existing.each { el.getCookies().remove(it) }
-                                          el.add(cookie)
+                            def gp = org.apache.jmeter.gui.GuiPackage.getInstance()
+                            if (gp != null) {
+                                def root = gp.getTreeModel()?.getTestPlan()
+                                if (root != null) {
+                                    root.traverse { el ->
+                                        try {
+                                            if (el instanceof org.apache.jmeter.protocol.http.control.CookieManager) {
+                                                // ensure no duplicate
+                                                def existing = el.getCookies().findAll { it.getName() == name }
+                                                existing.each { el.getCookies().remove(it) }
+                                                // use getCookies().add to ensure proper type
+                                                el.getCookies().add(cookie)
+                                                log.info('✅ Updated GUI CookieManager entry: ' + name + '=' + value)
 
-                                          // Attempt to refresh JMeter GUI so Cookie Manager table shows updated values
-                                          try {
-                                            def gp = org.apache.jmeter.gui.GuiPackage.getInstance()
-                                            if (gp != null) {
-                                              javax.swing.SwingUtilities.invokeLater({ ->
-                                                try {
-                                                  gp.getMainFrame()?.repaint()
-                                                } catch (re) {
-                                                  // ignore GUI repaint failures
-                                                }
-                                              } as Runnable)
+                                                // GUI refresh on EDT so table updates
+                                                javax.swing.SwingUtilities.invokeLater({ ->
+                                                    try {
+                                                        gp.getMainFrame()?.repaint()
+                                                    } catch (re) {
+                                                        // ignore GUI repaint failures
+                                                    }
+                                                } as Runnable)
                                             }
-                                          } catch (guiEx) {
-                                            // ignore GUI refresh failures
-                                          }
+                                        } catch (ee) {
+                                            // ignore individual element failures
                                         }
-                                    } catch (ee) {
-                                        // ignore individual element failures
                                     }
                                 }
                             }
