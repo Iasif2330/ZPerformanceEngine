@@ -146,6 +146,13 @@ def baseUrl  = envConfig[envName].baseUrl
 def parsed   = baseUrl.replace("https://","").replace("http://","")
 def domain   = parsed.contains("/") ? parsed.substring(0, parsed.indexOf("/")) : parsed
 def basePath = parsed.contains("/") ? parsed.substring(parsed.indexOf("/")) : ""
+// ===================================================================
+// Resolve OCSC cookie value (must match apiHeaders.ocsh)
+// ===================================================================
+def ocscValue = headersConfig["apiHeaders"]?.ocsh
+if (ocscValue != null && ocscValue.toString().trim() == "") {
+    ocscValue = null
+}
 
 // ===================================================================
 // def resultsDir = new File("output/results")
@@ -221,6 +228,18 @@ apis = [loginApi] + apis
 
 // ⭐ Build otherApis correctly AFTER fixing order
 def otherApis = apis.drop(1)
+// ===================================================================
+// Determine if OCSC cookie is required for this run
+// ===================================================================
+def requiresOcsc =
+    (loginApi?.requiresOcsc == true) ||
+    otherApis.any { it.requiresOcsc == true }
+
+if (requiresOcsc && !ocscValue) {
+    throw new IllegalStateException(
+        "API requires OCSC cookie, but apiHeaders.ocsh is missing"
+    )
+}
 
 // Update final name list
 selectedApiNames = apis.collect { it.name }
@@ -350,10 +369,23 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
           testclass:"CookieManager",
           testname:"Cookie Manager",
           enabled:"true"
-        ) {
-          boolProp(name:"CookieManager.clearEachIteration","false")
+      ) {
+        boolProp(name:"CookieManager.clearEachIteration","false")
+
+        if (requiresOcsc && ocscValue) {
+          collectionProp(name:"CookieManager.cookies") {
+            elementProp(name:"OCSC", elementType:"Cookie") {
+              stringProp(name:"Cookie.name",  "OCSC")
+              stringProp(name:"Cookie.value", ocscValue)
+              stringProp(name:"Cookie.domain", domain)
+              stringProp(name:"Cookie.path",   "/")
+              boolProp(name:"Cookie.secure",   "true")
+              boolProp(name:"Cookie.httpOnly","true")
+            }
+          }
         }
-        hashTree()
+      }
+    hashTree()
 
         // LOGIN SAMPLER
         def login = loginApi
