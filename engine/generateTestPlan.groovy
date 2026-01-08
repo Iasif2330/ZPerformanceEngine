@@ -374,13 +374,13 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
 
         if (requiresOcsc && ocscValue) {
           collectionProp(name:"CookieManager.cookies") {
-            elementProp(name:"OCSC", elementType:"Cookie") {
-              stringProp(name:"Cookie.name",  "OCSC")
+            elementProp(name:"ocsc", elementType:"Cookie") {
+              stringProp(name:"Cookie.name",  "ocsc")
               stringProp(name:"Cookie.value", ocscValue)
               stringProp(name:"Cookie.domain", domain)
-              stringProp(name:"Cookie.path",   "/")
-              boolProp(name:"Cookie.secure",   "true")
-              boolProp(name:"Cookie.httpOnly","true")
+              stringProp(name:"Cookie.path",   "/rest/web/current/action/execute")
+              boolProp(name:"Cookie.secure",   "false")
+              boolProp(name:"Cookie.httpOnly","false")
             }
           }
         }
@@ -510,7 +510,7 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
               name,
               value,
               prev.getURL().getHost(),
-              "/",
+              "/rest/web/current/action/execute",
               prev.isSecure(),
               0
             )
