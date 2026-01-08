@@ -47,3 +47,10 @@ apis:
     payload: "useEnv"
     headers: "apiHeaders"
     extractCookie: false
+
+  - name: createentity
+    method: POST
+    endpoint: "/rest/web/current/action/execute"
+    payload: "useEnv"
+    headers: "apiHeaders"
+    extractCookie: false

@@ -1,0 +1,36 @@
+{
+  "group": "ASSET",
+  "data": {
+    "type": "ASSET_ACTION",
+    "assetType": "ENTITY",
+    "category": "interest",
+    "operation": "CREATE"
+  },
+  "actions": [
+    {
+      "name": "FIELD_UPDATE",
+      "updates": [
+        {
+          "opType": "SET",
+          "field": "category",
+          "value": "interest"
+        },
+        {
+          "opType": "SET",
+          "field": "subCategory",
+          "value": "person"
+        },
+        {
+          "opType": "SET",
+          "field": "name",
+          "value": "Test Entity 001"
+        },
+        {
+          "opType": "SET",
+          "field": "visibility",
+          "value": "{\"type\":\"PUBLIC\"}"
+        }
+      ]
+    }
+  ]
+}

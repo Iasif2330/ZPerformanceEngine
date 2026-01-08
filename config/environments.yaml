@@ -18,6 +18,7 @@ autoprod:
     riskintelligence: "data/autoprod/riskintelligence-payload.json"
     crimeevents: "data/autoprod/crimeevents-payload.json"
     feedpreview: "data/autoprod/feedpreview-payload.json"
+    createentity: "data/autoprod/createentity-payload.json"
 
 dev:
   baseUrl: "https://devapp.qaontic.com"
