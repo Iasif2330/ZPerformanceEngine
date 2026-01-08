@@ -461,20 +461,6 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
 )
           hashTree()
           // LOGIN SAMPLER
-HTTPSamplerProxy( ... )
-
-hashTree {
-
-  HeaderManager(...)
-  hashTree()
-
-  buildResponseAssertion(...)
-  hashTree()
-
-  // 👇 THIS IS WHAT YOU JUST ADDED
-  JSR223PostProcessor(...)
-  hashTree()
-}
 
         }
 
