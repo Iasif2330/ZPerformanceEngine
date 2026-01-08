@@ -54,3 +54,4 @@ apis:
     payload: "useEnv"
     headers: "apiHeaders"
     extractCookie: false
+    requiresOcsc: true
