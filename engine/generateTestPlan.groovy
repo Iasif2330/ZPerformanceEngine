@@ -452,17 +452,79 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
             hashTree()
           }
           // === Assertions for LOGIN ===
-          buildResponseAssertion(
-    delegate,
-    "Login Response Code Assertion",
-    2,
-    2,
-    [code302: "302"]
-)
-          hashTree()
-          // LOGIN SAMPLER
+            buildResponseAssertion(
+        delegate,
+        "Login Response Code Assertion",
+        2,
+        2,
+        [code302: "302"]
+      )
+            hashTree()
 
+            // ============================================================
+            // FORCE COPY LOGIN RESPONSE COOKIES INTO COOKIE MANAGER
+            // ============================================================
+            JSR223PostProcessor(
+            guiclass:"TestBeanGUI",
+            testclass:"JSR223PostProcessor",
+            testname:"Persist Login Cookies",
+            enabled:"true"
+            ) {
+            stringProp(name:"scriptLanguage", "groovy")
+            stringProp(name:"script", '''
+        import org.apache.jmeter.protocol.http.control.Cookie
+        import org.apache.jmeter.protocol.http.control.CookieManager
+
+        // Find CookieManager in test plan
+        CookieManager cm = null
+        ctx.getEngine().getTestPlan().traverse { el ->
+          if (el instanceof CookieManager) {
+            cm = el
+          }
         }
+
+        if (cm == null) {
+          log.error("❌ CookieManager not found")
+          return
+        }
+
+        // Read Set-Cookie headers from LOGIN response
+        def headers = prev.getResponseHeaders()
+        headers.readLines()
+          .findAll { it.toLowerCase().startsWith("set-cookie:") }
+          .each { line ->
+
+            // Strip "Set-Cookie:"
+            def cookieDef = line.substring(11).trim()
+
+            // Split name=value
+            def parts = cookieDef.split(";", 2)
+            def nameValue = parts[0].split("=", 2)
+
+            if (nameValue.length != 2) return
+
+            def name  = nameValue[0].trim()
+            def value = nameValue[1].trim()
+
+            def cookie = new Cookie(
+              name,
+              value,
+              prev.getURL().getHost(),
+              "/",
+              prev.isSecure(),
+              0
+            )
+
+            cm.add(cookie)
+            log.info("✅ Persisted login cookie: " + name)
+          }
+        ''')
+            }
+            hashTree()
+
+            // LOGIN SAMPLER
+
+          }
 
         // OTHER APIs
         otherApis.each { api ->
