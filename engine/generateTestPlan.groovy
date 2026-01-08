@@ -399,8 +399,8 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
           testname: login.name,
           enabled:"true"
         ) {
-          boolProp(name:"HTTPSampler.follow_redirects", "false")
-          boolProp(name:"HTTPSampler.auto_redirects",  "false")
+          boolProp(name:"HTTPSampler.follow_redirects", "true")
+          boolProp(name:"HTTPSampler.auto_redirects",  "true")
           boolProp(name:"HTTPSampler.image_parser", "false")
           boolProp(name:"HTTPSampler.concurrentDwn", "false")
           stringProp(name:"HTTPSampler.domain", domain)
