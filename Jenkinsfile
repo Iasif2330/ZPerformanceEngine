@@ -177,7 +177,7 @@ ${cliArgs}
                 sh '''
                     cd output
                     rm -f performance-reports.zip
-                    zip -r performance-reports.zip dashboard executive
+                    zip -r performance-reports.zip dashboard executive generated-test-plan.jmx
                 '''
 
                 /* Archive ONLY what users should download */
