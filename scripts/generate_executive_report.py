@@ -142,10 +142,6 @@ if observed_error_count > 0:
 A total of <strong>{observed_error_count}</strong> unsuccessful samples were recorded
 ({observed_error_pct}% of all executed requests).
 </p>
-<p>
-Failure classification beyond aggregate counts is not available in
-<code>statistics.json</code> and is therefore not included in this report.
-</p>
 """
 
 # --------------------------------------------------
@@ -257,7 +253,6 @@ li {{
 
 <h2>Scope & Interpretation Notes</h2>
 <ul>
-  <li>All metrics in this report are derived directly from JMeter <code>statistics.json</code>.</li>
   <li>Error metrics represent aggregated unsuccessful samples only.</li>
   <li>No assumptions are made regarding error cause or classification.</li>
   <li>No SLAs, baselines, or trend comparisons are applied.</li>
