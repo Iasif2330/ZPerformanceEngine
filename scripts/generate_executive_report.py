@@ -33,12 +33,9 @@ with open(STATISTICS_JSON, "r", encoding="utf-8") as f:
 # Helpers
 # --------------------------------------------------
 def r(v, d=2):
-    return round(v, d) if isinstance(v, (int, float)) else v
-
-# --------------------------------------------------
-# Error classification rules (LOCKED)
-# --------------------------------------------------
-FUNCTIONAL_ERROR_CODES = {"401", "403", "404"}
+    if isinstance(v, (int, float)):
+        return round(v, d)
+    return 0
 
 # --------------------------------------------------
 # Extract totals
@@ -56,73 +53,99 @@ overall_throughput = r(total.get("throughput", 0), 2)
 statistics_rows = []
 observations = []
 
-# Track error classification
-functional_errors = Counter()
-performance_errors = Counter()
+failing_apis = []
+p95_rank = []
 
 for label, m in stats.items():
     if label == "Total":
         continue
 
-    # -----------------------------
-    # Statistics table row
-    # -----------------------------
+    sample_count = m.get("sampleCount", 0)
+    error_count = m.get("errorCount", 0)
+    error_pct = r(m.get("errorPct", 0))
+
+    mean_rt = r(m.get("meanResTime"))
+    min_rt = r(m.get("minResTime"))
+    max_rt = r(m.get("maxResTime"))
+    median_rt = r(m.get("medianResTime"))
+
+    p90 = r(m.get("pct1ResTime"))
+    p95 = r(m.get("pct2ResTime"))
+    p99 = r(m.get("pct3ResTime"))
+
+    throughput = r(m.get("throughput"), 2)
+    recv_kbps = r(m.get("receivedKBytesPerSec"), 2)
+    sent_kbps = r(m.get("sentKBytesPerSec"), 2)
+
+    if error_count > 0:
+        failing_apis.append((label, error_count, error_pct))
+
+    if p95 > 0:
+        p95_rank.append((label, p95))
+
     statistics_rows.append(f"""
     <tr>
       <td>{label}</td>
-      <td>{m['sampleCount']}</td>
-      <td>{r(m['errorPct'])}%</td>
-      <td>{r(m['meanResTime'])}</td>
-      <td>{r(m['minResTime'])}</td>
-      <td>{r(m['maxResTime'])}</td>
-      <td>{r(m['medianResTime'])}</td>
-      <td>{r(m['pct1ResTime'])}</td>
-      <td>{r(m['pct2ResTime'])}</td>
-      <td>{r(m['pct3ResTime'])}</td>
-      <td>{r(m['throughput'], 2)}</td>
-      <td>{r(m['receivedKBytesPerSec'], 2)}</td>
-      <td>{r(m['sentKBytesPerSec'], 2)}</td>
+      <td>{sample_count}</td>
+      <td>{error_pct}%</td>
+      <td>{mean_rt}</td>
+      <td>{min_rt}</td>
+      <td>{max_rt}</td>
+      <td>{median_rt}</td>
+      <td>{p90}</td>
+      <td>{p95}</td>
+      <td>{p99}</td>
+      <td>{throughput}</td>
+      <td>{recv_kbps}</td>
+      <td>{sent_kbps}</td>
     </tr>
     """)
-
-    error_count = m.get("errorCount", 0)
-
-    # -----------------------------
-    # Quantitative Key Observations
-    # -----------------------------
-    obs_lines = [
-        f"<li>Requests executed: {m['sampleCount']}.</li>",
-        f"<li>Request failures: {error_count} ({r(m['errorPct'])}%).</li>",
-        f"<li>P95 response time: {r(m['pct2ResTime'])} ms.</li>",
-        f"<li>Observed throughput: {r(m['throughput'], 2)} transactions/sec.</li>",
-    ]
 
     observations.append(f"""
     <li><strong>{label}</strong>
       <ul>
-        {''.join(obs_lines)}
+        <li>Requests executed: {sample_count}</li>
+        <li>Observed failures: {error_count} ({error_pct}%)</li>
+        <li>P95 response time: {p95} ms</li>
+        <li>Throughput: {throughput} transactions/sec</li>
       </ul>
     </li>
     """)
 
 # --------------------------------------------------
-# Errors Section (CONDITIONAL, EXECUTIVE-SAFE)
+# Executive Insights
+# --------------------------------------------------
+insights = []
+
+if failing_apis:
+    failing_apis.sort(key=lambda x: x[1], reverse=True)
+    insights.append("<li><strong>APIs with highest failure counts:</strong></li>")
+    insights.append("<ul>")
+    for label, cnt, pct in failing_apis[:5]:
+        insights.append(f"<li>{label}: {cnt} failures ({pct}%)</li>")
+    insights.append("</ul>")
+
+if p95_rank:
+    p95_rank.sort(key=lambda x: x[1], reverse=True)
+    slowest_api, slowest_p95 = p95_rank[0]
+    insights.append(
+        f"<li><strong>Slowest API by P95 latency:</strong> {slowest_api} ({slowest_p95} ms)</li>"
+    )
+
+# --------------------------------------------------
+# Errors Section
 # --------------------------------------------------
 errors_section = ""
-
 if observed_error_count > 0:
     errors_section = f"""
-<h2>Errors Observed</h2>
-
+<h2>Observed Failures</h2>
 <p>
-A total of <strong>{observed_error_count}</strong> request failures were recorded,
-representing <strong>{observed_error_pct}%</strong> of all requests executed during the test.
+A total of <strong>{observed_error_count}</strong> failures were recorded
+({observed_error_pct}% of all requests).
 </p>
-
 <p>
-Observed failures include all client-observed request outcomes.
-Functional errors (e.g., authentication or authorization failures) are
-reported separately from performance-related failures.
+Failures include HTTP-level failures and client-side assertion failures
+(e.g., response validation checks).
 </p>
 """
 
@@ -142,25 +165,21 @@ body {{
     background: #f4f4f4;
     padding: 20px;
 }}
-
 h1, h2 {{
     margin-top: 30px;
 }}
-
 .summary-box {{
     background: #ffffff;
     padding: 16px;
     border-radius: 8px;
     margin-bottom: 30px;
 }}
-
 table {{
     width: 100%;
     border-collapse: collapse;
     margin-top: 15px;
     background: #ffffff;
 }}
-
 thead th {{
     background-color: #273043;
     color: #ffffff;
@@ -168,28 +187,23 @@ thead th {{
     font-size: 13px;
     border: 1px solid #444;
 }}
-
 tbody td {{
     padding: 8px;
     border: 1px solid #ddd;
     font-size: 13px;
     text-align: center;
 }}
-
 tbody tr:nth-child(even) td {{
     background-color: #f7f9fc;
 }}
-
 th:first-child,
 td:first-child {{
     text-align: left;
     font-weight: 600;
 }}
-
 ul {{
     margin-top: 10px;
 }}
-
 li {{
     margin-bottom: 8px;
 }}
@@ -234,15 +248,20 @@ li {{
 
 <h2>Key Observations</h2>
 <ul>
-{''.join(observations)}
+{''.join(observations) if observations else "<li>No individual samplers were executed.</li>"}
+</ul>
+
+<h2>Executive Insights</h2>
+<ul>
+{''.join(insights) if insights else "<li>No critical performance risks observed.</li>"}
 </ul>
 
 <h2>Scope & Interpretation Notes</h2>
 <ul>
-  <li>All metrics in this report are derived directly from JMeter <code>statistics.json</code>.</li>
-  <li>Observed failures include all client-observed request outcomes.</li>
-  <li>Functional errors (e.g., HTTP 401/403) are not indicative of system performance under load.</li>
-  <li>No baselines, thresholds, or service-side metrics are applied.</li>
+  <li>All metrics are derived directly from JMeter <code>statistics.json</code>.</li>
+  <li>Failures include HTTP failures and client-side assertion failures.</li>
+  <li>No SLAs, baselines, or trend comparisons are applied.</li>
+  <li>This report reflects client-observed behavior under test conditions.</li>
 </ul>
 
 </body>
