@@ -255,7 +255,12 @@ println "================================================="
 println ""
 
 // ---------- ASSERTION BUILDER (PATCH) ----------
-def buildResponseAssertion = { builder, assertionName, testField, matchType, patternsMap, negate = false ->
+def buildResponseAssertion = { builder, assertionName, patternsMap, negate = false ->
+
+    // JMeter constants (DO NOT CHANGE)
+    final int FIELD_RESPONSE_CODE = 2
+    final int TYPE_EQUALS = 8
+    final int APPLY_MAIN_SAMPLE = 0
 
     builder.ResponseAssertion(
         guiclass: "AssertionGui",
@@ -263,27 +268,23 @@ def buildResponseAssertion = { builder, assertionName, testField, matchType, pat
         testname: assertionName,
         enabled: "true"
     ) {
-
         boolProp(name: "Assertion.not", negate.toString())
-        // Apply to main sample only
-        intProp(name: "Assertion.apply_to", 0)
 
-        // WHAT to test (Response Code = 2)
-        intProp(name: "Assertion.test_field", testField)
-
-        // HOW to test (Equals = 8)
-        intProp(name: "Assertion.test_type", matchType)
+        intProp(name: "Assertion.apply_to", APPLY_MAIN_SAMPLE)
+        intProp(name: "Assertion.test_field", FIELD_RESPONSE_CODE)
+        intProp(name: "Assertion.test_type", TYPE_EQUALS)
 
         collectionProp(name: "Assertion.test_strings") {
-          patternsMap.values().eachWithIndex { val, idx ->
-          stringProp(name: idx.toString(), val)
-          }
+            patternsMap.eachWithIndex { val, idx ->
+                stringProp(name: idx.toString(), val.toString())
+            }
         }
 
         stringProp(name: "Assertion.custom_message", "")
         boolProp(name: "Assertion.assume_success", "false")
     }
 }
+// ---------- END PATCH ----------
 
 
 // =========================
@@ -304,27 +305,18 @@ def resolveAssertionsForApi = { apiName ->
 def buildAssertionFromSpec = { builder, apiName, spec ->
 
     if (spec.type == "response_code") {
-
-        // Normalize values into a simple map
-        def patternsMap = [:]
-        spec.values.eachWithIndex { v, idx ->
-            patternsMap[idx.toString()] = v.toString()
-        }
-
         buildResponseAssertion(
             builder,
             "${apiName}: Response Code",
-            2,   // Assertion.test_field → Response Code
-            8,   // Assertion.test_type  → Equals
-            patternsMap
+            spec.values
         )
-
     } else {
         throw new IllegalArgumentException(
             "Unknown assertion type '${spec.type}' for API '${apiName}'"
         )
     }
 }
+
 
 // ---------- END PATCH ----------
 
