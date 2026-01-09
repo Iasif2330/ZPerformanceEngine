@@ -300,7 +300,7 @@ def buildAssertionFromSpec = { builder, apiName, spec ->
             builder,
             "${apiName}: Response Code",
             2,   // Response Code
-            2,   // Equals
+            8,   // Equals
             spec.values.collectEntries { v ->
                 [(v.toString()): v.toString()]
             }
