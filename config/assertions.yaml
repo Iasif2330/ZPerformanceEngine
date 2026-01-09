@@ -5,4 +5,4 @@ defaults:
 apis:
   login:
     - type: response_code
-      values: [302]
+      values: [502]
