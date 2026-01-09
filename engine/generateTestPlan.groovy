@@ -15,6 +15,13 @@ def apiConfig        = YamlLoader.load("config/apis.yaml")
 def profileConfig    = YamlLoader.load("config/load-profile.yaml")
 def apiGroupsConfig  = YamlLoader.load("config/api-groups.yaml")
 
+// =========================
+// Load assertions config
+// =========================
+def assertionsConfig  = YamlLoader.load("config/assertions.yaml") ?: [:]
+def defaultAssertions = assertionsConfig.defaults ?: []
+def apiAssertionsMap  = assertionsConfig.apis ?: [:]
+
 // ===================================================================
 // Resolve environment with structured summary
 // ===================================================================
@@ -271,6 +278,40 @@ def buildResponseAssertion = { builder, assertionName, testField, matchType, pat
         boolProp(name: "Assertion.assume_success", "false")
     }
 }
+
+
+// =========================
+// YAML-driven assertion helpers
+// =========================
+
+// Decide which assertions apply to an API
+def resolveAssertionsForApi = { apiName ->
+    if (apiAssertionsMap.containsKey(apiName)) {
+        return apiAssertionsMap[apiName]
+    }
+    return defaultAssertions
+}
+
+// Build assertion from YAML spec
+def buildAssertionFromSpec = { builder, apiName, spec ->
+
+    if (spec.type == "response_code") {
+        buildResponseAssertion(
+            builder,
+            "${apiName}: Response Code",
+            2,   // Response Code
+            2,   // Equals
+            spec.values.collectEntries { v ->
+                [(v.toString()): v.toString()]
+            }
+        )
+    } else {
+        throw new IllegalArgumentException(
+            "Unknown assertion type '${spec.type}' for API '${apiName}'"
+        )
+    }
+}
+
 // ---------- END PATCH ----------
 
 // ===================================================================
@@ -419,15 +460,11 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
             )
             hashTree()
           }
-          // === Assertions for LOGIN ===
-          buildResponseAssertion(
-    delegate,
-    "Login Response Code Assertion",
-    2,
-    2,
-    [code302: "302"]
-)
-          hashTree()
+          // === YAML-DRIVEN ASSERTIONS FOR LOGIN ===
+resolveAssertionsForApi(login.name).each { spec ->
+    buildAssertionFromSpec(delegate, login.name, spec)
+    hashTree()
+}
         }
 
         // OTHER APIs
@@ -496,58 +533,11 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
               hashTree()
             }
             // ============================
-          // ASSERTIONS FOR API: ${api.name}
-          // ============================
-
-          // -----------------------------------------
-          // 1) RESPONSE CODE MUST BE 200
-          // -----------------------------------------
-          ResponseAssertion(
-            guiclass:"AssertionGui",
-            testclass:"ResponseAssertion",
-            testname:"${api.name}: Response Code = 200",
-            enabled:"true"
-          ) {
-            intProp(name:"Assertion.test_field", 2)   // 2 = Response Code
-            collectionProp(name:"Assertion.test_strings") {
-              stringProp(name:"200", "200")
-            }
-          }
-          hashTree()
-
-          // -----------------------------------------
-          // 2) RESPONSE BODY MUST NOT BE EMPTY
-          // operator "2" means ">" in JMeter
-          // -----------------------------------------
-          SizeAssertion(
-            guiclass:"SizeAssertionGui",
-            testclass:"SizeAssertion",
-            testname:"${api.name}: Response Body Not Empty",
-            enabled:"true"
-          ) {
-            stringProp(name:"SizeAssertion.size", "0")
-            stringProp(name:"SizeAssertion.operator", "2")  // > 0
-          }
-          hashTree()
-
-          // -----------------------------------------
-          // 3) RESPONSE BODY MUST NOT CONTAIN "error"
-          // test_field "4" = Response Body
-          // Assertion.not=true → NEGATE MATCH
-          // -----------------------------------------
-          ResponseAssertion(
-            guiclass:"AssertionGui",
-            testclass:"ResponseAssertion",
-            testname:"${api.name}: No 'error' in Body",
-            enabled:"true"
-          ) {
-            intProp(name:"Assertion.test_field", 4)   // 4 = BODY
-            boolProp(name:"Assertion.not", "true")   // NEGATE
-            collectionProp(name:"Assertion.test_strings") {
-              stringProp(name:"error", "error")
-            }
-          }
-          hashTree()
+          // === YAML-DRIVEN ASSERTIONS FOR THIS API ===
+resolveAssertionsForApi(api.name).each { spec ->
+    buildAssertionFromSpec(delegate, api.name, spec)
+    hashTree()
+}
           }
 
         }
