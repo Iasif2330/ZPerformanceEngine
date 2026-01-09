@@ -274,11 +274,11 @@ def buildResponseAssertion = { builder, assertionName, patternsMap, negate = fal
         intProp(name: "Assertion.test_field", FIELD_RESPONSE_CODE)
         intProp(name: "Assertion.test_type", TYPE_EQUALS)
 
-        // Simulate "Add from Clipboard" behavior
-        stringProp(
-            name: "Assertion.test_strings",
-            patternsMap.values().join("\n")
-        )
+        collectionProp(name: "Assertion.test_strings") {
+            patternsMap.eachWithIndex { val, idx ->
+                stringProp(name: idx.toString(), val.toString())
+            }
+        }
 
         stringProp(name: "Assertion.custom_message", "")
         boolProp(name: "Assertion.assume_success", "false")
