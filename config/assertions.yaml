@@ -1,6 +1,6 @@
 defaults:
   - type: response_code
-    values: [200]
+    values: [209]
 
   - type: response_size_gt
     value: 0
