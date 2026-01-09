@@ -1,0 +1,8 @@
+defaults:
+  - type: response_code
+    values: [200]
+
+apis:
+  login:
+    - type: response_code
+      values: [302]
