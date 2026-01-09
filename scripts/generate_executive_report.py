@@ -1,7 +1,6 @@
 import json
 import sys
 import os
-from collections import Counter
 
 # --------------------------------------------------
 # Inputs
@@ -113,13 +112,13 @@ for label, m in stats.items():
     """)
 
 # --------------------------------------------------
-# Executive Insights
+# Executive Insights (PROVABLE ONLY)
 # --------------------------------------------------
 insights = []
 
 if failing_apis:
     failing_apis.sort(key=lambda x: x[1], reverse=True)
-    insights.append("<li><strong>APIs with highest failure counts:</strong></li>")
+    insights.append("<li><strong>APIs with highest observed failure counts:</strong></li>")
     insights.append("<ul>")
     for label, cnt, pct in failing_apis[:5]:
         insights.append(f"<li>{label}: {cnt} failures ({pct}%)</li>")
@@ -133,19 +132,19 @@ if p95_rank:
     )
 
 # --------------------------------------------------
-# Errors Section
+# Errors Section (STRICTLY DEFENSIBLE)
 # --------------------------------------------------
 errors_section = ""
 if observed_error_count > 0:
     errors_section = f"""
 <h2>Observed Failures</h2>
 <p>
-A total of <strong>{observed_error_count}</strong> failures were recorded
-({observed_error_pct}% of all requests).
+A total of <strong>{observed_error_count}</strong> unsuccessful samples were recorded
+({observed_error_pct}% of all executed requests).
 </p>
 <p>
-Failures include HTTP-level failures and client-side assertion failures
-(e.g., response validation checks).
+Failure classification beyond aggregate counts is not available in
+<code>statistics.json</code> and is therefore not included in this report.
 </p>
 """
 
@@ -258,8 +257,9 @@ li {{
 
 <h2>Scope & Interpretation Notes</h2>
 <ul>
-  <li>All metrics are derived directly from JMeter <code>statistics.json</code>.</li>
-  <li>Failures include HTTP failures and client-side assertion failures.</li>
+  <li>All metrics in this report are derived directly from JMeter <code>statistics.json</code>.</li>
+  <li>Error metrics represent aggregated unsuccessful samples only.</li>
+  <li>No assumptions are made regarding error cause or classification.</li>
   <li>No SLAs, baselines, or trend comparisons are applied.</li>
   <li>This report reflects client-observed behavior under test conditions.</li>
 </ul>
