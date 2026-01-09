@@ -255,12 +255,13 @@ println "================================================="
 println ""
 
 // =========================
-// YAML-driven assertion helpers
+// YAML-driven assertion helpers (JSR223 ONLY)
 // =========================
 
-// =========================
-// JSR223 Response Code Assertion (CLI + GUI SAFE)
-// =========================
+
+// =======================================================
+// 1) JSR223 Response Code Assertion
+// =======================================================
 def buildResponseCodeJSR223Assertion = { builder, apiName, expectedCodes ->
 
     builder.JSR223Assertion(
@@ -270,6 +271,10 @@ def buildResponseCodeJSR223Assertion = { builder, apiName, expectedCodes ->
         enabled: "true"
     ) {
         stringProp(name: "scriptLanguage", "groovy")
+
+        // REQUIRED so assertion actually fails in JMeter 5.x
+        boolProp(name: "cacheKey", "false")
+
         stringProp(
             name: "script",
             """
@@ -288,7 +293,75 @@ if (!expected.contains(actual)) {
 }
 
 
-// Decide which assertions apply to an API
+// =======================================================
+// 2) JSR223 Response Size > N Assertion
+// =======================================================
+def buildResponseSizeJSR223Assertion = { builder, apiName, minSize ->
+
+    builder.JSR223Assertion(
+        guiclass: "TestBeanGUI",
+        testclass: "JSR223Assertion",
+        testname: "${apiName}: Response Size > ${minSize}",
+        enabled: "true"
+    ) {
+        stringProp(name: "scriptLanguage", "groovy")
+        boolProp(name: "cacheKey", "false")
+
+        stringProp(
+            name: "script",
+            """
+def size = prev.getResponseData()?.length ?: 0
+
+if (size <= ${minSize}) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(
+        "Expected response size > ${minSize}, but got: " + size
+    )
+}
+"""
+        )
+    }
+}
+
+
+// =======================================================
+// 3) JSR223 Body NOT Contains Assertion
+// =======================================================
+def buildBodyNotContainsJSR223Assertion = { builder, apiName, forbiddenValues ->
+
+    builder.JSR223Assertion(
+        guiclass: "TestBeanGUI",
+        testclass: "JSR223Assertion",
+        testname: "${apiName}: Body Not Contains",
+        enabled: "true"
+    ) {
+        stringProp(name: "scriptLanguage", "groovy")
+        boolProp(name: "cacheKey", "false")
+
+        stringProp(
+            name: "script",
+            """
+def body = prev.getResponseDataAsString()
+def forbidden = ${forbiddenValues.collect { "\"$it\"" }}
+
+for (val in forbidden) {
+    if (body != null && body.contains(val)) {
+        AssertionResult.setFailure(true)
+        AssertionResult.setFailureMessage(
+            "Response body contains forbidden value: '" + val + "'"
+        )
+        break
+    }
+}
+"""
+        )
+    }
+}
+
+
+// =======================================================
+// 4) Resolve assertions for API (UNCHANGED LOGIC)
+// =======================================================
 def resolveAssertionsForApi = { apiName ->
     if (apiAssertionsMap.containsKey(apiName)) {
         return apiAssertionsMap[apiName]
@@ -296,28 +369,45 @@ def resolveAssertionsForApi = { apiName ->
     return defaultAssertions
 }
 
-// =========================
-// Build assertion from YAML spec
-// =========================
-// =========================
-// Build assertion from YAML spec (JSR223-based)
-// =========================
+
+// =======================================================
+// 5) Dispatcher: YAML → JSR223 Assertions
+// =======================================================
 def buildAssertionFromSpec = { builder, apiName, spec ->
 
-    if (spec.type == "response_code") {
-        buildResponseCodeJSR223Assertion(
-            builder,
-            apiName,
-            spec.values
-        )
-    } else {
-        throw new IllegalArgumentException(
-            "Unknown assertion type '${spec.type}' for API '${apiName}'"
-        )
+    switch (spec.type) {
+
+        case "response_code":
+            buildResponseCodeJSR223Assertion(
+                builder,
+                apiName,
+                spec.values
+            )
+            break
+
+        case "response_size_gt":
+            buildResponseSizeJSR223Assertion(
+                builder,
+                apiName,
+                spec.value
+            )
+            break
+
+        case "body_not_contains":
+            buildBodyNotContainsJSR223Assertion(
+                builder,
+                apiName,
+                spec.values
+            )
+            break
+
+        default:
+            throw new IllegalArgumentException(
+                "Unknown assertion type '${spec.type}' for API '${apiName}'"
+            )
     }
 }
 
-// ===================================================================
 // ===================================================================
 // CLEAN old dashboard folder BEFORE generating new JMX/report
 def dashDir = new File("output/dashboard")
