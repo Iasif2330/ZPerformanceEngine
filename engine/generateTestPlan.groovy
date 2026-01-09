@@ -254,42 +254,39 @@ if (isSpecificApiSelection) {
 println "================================================="
 println ""
 
-// ---------- ASSERTION BUILDER (PATCH) ----------
-def buildResponseAssertion = { builder, assertionName, patternsMap, negate = false ->
-
-    // JMeter constants (DO NOT CHANGE)
-    final int FIELD_RESPONSE_CODE = 2
-    final int TYPE_EQUALS = 8
-    final int APPLY_MAIN_SAMPLE = 0
-
-    builder.ResponseAssertion(
-        guiclass: "AssertionGui",
-        testclass: "ResponseAssertion",
-        testname: assertionName,
-        enabled: "true"
-    ) {
-        boolProp(name: "Assertion.not", negate.toString())
-
-        intProp(name: "Assertion.apply_to", APPLY_MAIN_SAMPLE)
-        intProp(name: "Assertion.test_field", FIELD_RESPONSE_CODE)
-        intProp(name: "Assertion.test_type", TYPE_EQUALS)
-
-        collectionProp(name: "Assertion.test_strings") {
-            patternsMap.eachWithIndex { val, idx ->
-                stringProp(name: idx.toString(), val.toString())
-            }
-        }
-
-        stringProp(name: "Assertion.custom_message", "")
-        boolProp(name: "Assertion.assume_success", "false")
-    }
-}
-// ---------- END PATCH ----------
-
-
 // =========================
 // YAML-driven assertion helpers
 // =========================
+
+// =========================
+// JSR223 Response Code Assertion (CLI + GUI SAFE)
+// =========================
+def buildResponseCodeJSR223Assertion = { builder, apiName, expectedCodes ->
+
+    builder.JSR223Assertion(
+        guiclass: "TestBeanGUI",
+        testclass: "JSR223Assertion",
+        testname: "${apiName}: Response Code Assertion",
+        enabled: "true"
+    ) {
+        stringProp(name: "scriptLanguage", "groovy")
+        stringProp(
+            name: "script",
+            """
+def actual = prev.getResponseCode()
+def expected = ${expectedCodes.collect { "\"$it\"" }}
+
+if (!expected.contains(actual)) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage(
+        "Expected response code(s): ${expectedCodes}, but got: " + actual
+    )
+}
+"""
+        )
+    }
+}
+
 
 // Decide which assertions apply to an API
 def resolveAssertionsForApi = { apiName ->
@@ -302,12 +299,15 @@ def resolveAssertionsForApi = { apiName ->
 // =========================
 // Build assertion from YAML spec
 // =========================
+// =========================
+// Build assertion from YAML spec (JSR223-based)
+// =========================
 def buildAssertionFromSpec = { builder, apiName, spec ->
 
     if (spec.type == "response_code") {
-        buildResponseAssertion(
+        buildResponseCodeJSR223Assertion(
             builder,
-            "${apiName}: Response Code",
+            apiName,
             spec.values
         )
     } else {
@@ -316,9 +316,6 @@ def buildAssertionFromSpec = { builder, apiName, spec ->
         )
     }
 }
-
-
-// ---------- END PATCH ----------
 
 // ===================================================================
 // ===================================================================
