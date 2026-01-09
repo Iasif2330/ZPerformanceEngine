@@ -265,13 +265,19 @@ def buildResponseAssertion = { builder, assertionName, testField, matchType, pat
     ) {
 
         boolProp(name: "Assertion.not", negate.toString())
-        intProp(name: "Assertion.test_type", matchType)
+        // Apply to main sample only
+        intProp(name: "Assertion.apply_to", 0)
+
+        // WHAT to test (Response Code = 2)
         intProp(name: "Assertion.test_field", testField)
 
+        // HOW to test (Equals = 8)
+        intProp(name: "Assertion.test_type", matchType)
+
         collectionProp(name: "Assertion.test_strings") {
-            patternsMap.each { key, val ->
-                stringProp(name: key, val)
-            }
+          patternsMap.values().eachWithIndex { val, idx ->
+          stringProp(name: idx.toString(), val)
+          }
         }
 
         stringProp(name: "Assertion.custom_message", "")
@@ -292,19 +298,27 @@ def resolveAssertionsForApi = { apiName ->
     return defaultAssertions
 }
 
+// =========================
 // Build assertion from YAML spec
+// =========================
 def buildAssertionFromSpec = { builder, apiName, spec ->
 
     if (spec.type == "response_code") {
+
+        // Normalize values into a simple map
+        def patternsMap = [:]
+        spec.values.eachWithIndex { v, idx ->
+            patternsMap[idx.toString()] = v.toString()
+        }
+
         buildResponseAssertion(
             builder,
             "${apiName}: Response Code",
-            2,   // Response Code
-            8,   // Equals
-            spec.values.collectEntries { v ->
-                [(v.toString()): v.toString()]
-            }
+            2,   // Assertion.test_field → Response Code
+            8,   // Assertion.test_type  → Equals
+            patternsMap
         )
+
     } else {
         throw new IllegalArgumentException(
             "Unknown assertion type '${spec.type}' for API '${apiName}'"
