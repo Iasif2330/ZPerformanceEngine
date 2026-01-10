@@ -1,6 +1,9 @@
 pipeline {
     agent any
 
+    /* ============================
+     * BUILD PARAMETERS
+     * ============================ */
     parameters {
         string(
             name: 'ENVIRONMENT',
@@ -30,7 +33,7 @@ pipeline {
         string(
             name: 'DURATION',
             defaultValue: '',
-            description: 'Test duration (ms), blank = default'
+            description: 'Test duration in ms (blank = default)'
         )
         string(
             name: 'SELECTED_APIS',
@@ -39,6 +42,9 @@ pipeline {
         )
     }
 
+    /* ============================
+     * PIPELINE ENV
+     * ============================ */
     environment {
         DOCKER_CLI = "/Applications/Docker.app/Contents/Resources/bin/docker"
         IMAGE_NAME = "zperformance-engine"
@@ -52,9 +58,7 @@ pipeline {
          * ============================ */
         stage('Build Docker Image') {
             steps {
-                sh """
-                    ${DOCKER_CLI} build -t ${IMAGE_NAME} .
-                """
+                sh "${DOCKER_CLI} build -t ${IMAGE_NAME} ."
             }
         }
 
@@ -76,44 +80,26 @@ pipeline {
         stage('Build CLI Args') {
             steps {
                 script {
-                    def envValue     = params.ENVIRONMENT ?: "autoprod"
-                    def profileValue = params.LOAD_PROFILE ?: "baseline-minimal"
-                    def loopVal      = params.LOOPLOGIN?.toString()?.toLowerCase() ?: "true"
-                    def debugVal     = params.DEBUG?.toString()?.toLowerCase() ?: "false"
+                    // Promote parameters to environment
+                    env.ENVIRONMENT  = params.ENVIRONMENT
+                    env.LOAD_PROFILE = params.LOAD_PROFILE
+                    env.TARGET_HOST  = params.TARGET_HOST
 
-                    def durRaw = params.DURATION ?: ""
-                    def durationVal =
-                        (durRaw.trim() == "" || durRaw.trim() == "0")
-                            ? null
-                            : durRaw.toInteger()
-
-                    def apisValueRaw = params.SELECTED_APIS ?: ""
-                    def apisValue = []
-                    if (apisValueRaw instanceof String && apisValueRaw.trim() != "") {
-                        apisValue = apisValueRaw.split(",") as List
-                    } else if (apisValueRaw instanceof List) {
-                        apisValue = apisValueRaw
-                    }
-
-                    apisValue = apisValue.collect { it.trim() }
-
-                    def loginSelected     = apisValue.any { it.equalsIgnoreCase("login") }
-                    def nonLoginApis      = apisValue.findAll { !it.equalsIgnoreCase("login") }
-                    def onlyLoginSelected = loginSelected && nonLoginApis.isEmpty()
+                    def loopVal  = params.LOOPLOGIN.toString().toLowerCase()
+                    def debugVal = params.DEBUG.toString().toLowerCase()
 
                     def cliArgs = ""
-                    cliArgs += "-Denv=${envValue} "
-                    cliArgs += "-Dprofile=${profileValue} "
+                    cliArgs += "-Denv=${env.ENVIRONMENT} "
+                    cliArgs += "-Dprofile=${env.LOAD_PROFILE} "
                     cliArgs += "-DloopLogin=${loopVal} "
                     cliArgs += "-Ddebug=${debugVal} "
 
-                    if (durationVal != null)
-                        cliArgs += "-Dduration=${durationVal} "
+                    if (params.DURATION?.trim()) {
+                        cliArgs += "-Dduration=${params.DURATION} "
+                    }
 
-                    if (onlyLoginSelected) {
-                        cliArgs += "-Dapis=login "
-                    } else if (!nonLoginApis.isEmpty()) {
-                        cliArgs += "-Dapis=${nonLoginApis.join(',')} "
+                    if (params.SELECTED_APIS?.trim()) {
+                        cliArgs += "-Dapis=${params.SELECTED_APIS} "
                     }
 
                     echo """
@@ -122,8 +108,6 @@ FINAL CLI ARGS
 ${cliArgs}
 """
                     env.CLI_ARGS = cliArgs
-                    env.ENVIRONMENT = envValue
-                    env.LOAD_PROFILE = profileValue
                 }
             }
         }
@@ -140,14 +124,6 @@ ${cliArgs}
                       ${IMAGE_NAME} \
                       groovy ${CLI_ARGS} engine/generateTestPlan.groovy
                 """
-
-                script {
-                    if (!fileExists("output/generated-test-plan.jmx")) {
-                        error "❌ JMX generation failed!"
-                    }
-                }
-
-                echo "Generated JMX at: output/generated-test-plan.jmx"
             }
         }
 
@@ -162,7 +138,7 @@ ${cliArgs}
                       -w ${WORKDIR} \
                       -e ENVIRONMENT=${env.ENVIRONMENT} \
                       -e LOAD_PROFILE=${env.LOAD_PROFILE} \
-                      -e TARGET_HOST=${params.TARGET_HOST ?: 'localhost'} \
+                      -e TARGET_HOST=${env.TARGET_HOST} \
                       -e REASONING_PHASE=preflight \
                       -e PYTHONPATH=${WORKDIR} \
                       ${IMAGE_NAME} \
@@ -181,31 +157,10 @@ ${cliArgs}
                       -v "${WORKSPACE}:${WORKDIR}" \
                       -w ${WORKDIR} \
                       ${IMAGE_NAME} \
-                      sh -c '
-                        rm -rf output/dashboard &&
-                        jmeter -n \
-                          -t output/generated-test-plan.jmx \
-                          -l output/results.jtl \
-                          -Jjmeter.save.saveservice.output_format=csv \
-                          -Jjmeter.save.saveservice.assertion_results=none \
-                          -Jjmeter.save.saveservice.data_type=true \
-                          -Jjmeter.save.saveservice.label=true \
-                          -Jjmeter.save.saveservice.response_code=true \
-                          -Jjmeter.save.saveservice.response_message=true \
-                          -Jjmeter.save.saveservice.successful=true \
-                          -Jjmeter.save.saveservice.thread_name=true \
-                          -Jjmeter.save.saveservice.time=true \
-                          -Jjmeter.save.saveservice.latency=true \
-                          -Jjmeter.save.saveservice.connect_time=true \
-                          -Jjmeter.save.saveservice.bytes=true \
-                          -Jjmeter.save.saveservice.sent_bytes=true \
-                          -Jjmeter.save.saveservice.sample_count=true \
-                          -Jjmeter.save.saveservice.error_count=true \
-                          -Jjmeter.save.saveservice.hostname=true \
-                          -Jjmeter.save.saveservice.timestamp=true \
-                          -Jjmeter.save.saveservice.thread_counts=true \
-                          -e -o output/dashboard
-                      '
+                      jmeter -n \
+                        -t output/generated-test-plan.jmx \
+                        -l output/results.jtl \
+                        -e -o output/dashboard
                 """
             }
         }
@@ -221,7 +176,7 @@ ${cliArgs}
                       -w ${WORKDIR} \
                       -e ENVIRONMENT=${env.ENVIRONMENT} \
                       -e LOAD_PROFILE=${env.LOAD_PROFILE} \
-                      -e TARGET_HOST=${params.TARGET_HOST ?: 'localhost'} \
+                      -e TARGET_HOST=${env.TARGET_HOST} \
                       -e REASONING_PHASE=postrun \
                       -e PYTHONPATH=${WORKDIR} \
                       ${IMAGE_NAME} \
@@ -248,7 +203,7 @@ ${cliArgs}
         }
 
         /* ============================
-         * STAGE 9 — Package & Archive Reports
+         * STAGE 9 — Archive Results
          * ============================ */
         stage('Archive Results') {
             steps {
@@ -261,30 +216,8 @@ ${cliArgs}
                         reasoning \
                         generated-test-plan.jmx
                 '''
-
                 archiveArtifacts artifacts: 'output/performance-reports.zip', fingerprint: true
                 archiveArtifacts artifacts: 'output/results.jtl', fingerprint: true
-
-                echo """
-================= REPORT ACCESS =================
-
-📦 DOWNLOAD:
-   Artifacts → performance-reports.zip
-
-📊 JMeter Dashboard:
-   dashboard/index.html
-
-📄 Executive Summary:
-   executive/index.html
-
-🧠 Performance Reasoning:
-   reasoning/
-
-⚠️ IMPORTANT:
-   Do NOT open reports inside Jenkins UI.
-
-=================================================
-"""
             }
         }
     }
