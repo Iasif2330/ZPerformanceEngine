@@ -1,1 +1,12 @@
+# Core configuration & parsing
 PyYAML>=6.0
+
+# System & host metrics
+psutil>=5.9
+
+# HTTP / API access (future collectors, probes)
+requests>=2.31
+
+# Data processing & analysis (metrics, baselines)
+pandas>=2.0
+numpy>=1.26
