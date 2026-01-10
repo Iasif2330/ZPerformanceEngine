@@ -117,7 +117,7 @@ def main():
     }
 
     # ============================================================
-    # 3. CLIENT HOST HEALTH (TRUST GATE #1)
+    # 3. CLIENT HOST HEALTH
     # ============================================================
     section("Client Host Health Check")
     host_telemetry = ClientHostCollector().collect()
@@ -158,7 +158,7 @@ def main():
     })
 
     # ============================================================
-    # 4. NETWORK HEALTH (TRUST GATE #2)
+    # 4. NETWORK HEALTH
     # ============================================================
     section("Network Path Health Check")
 
@@ -237,7 +237,7 @@ def main():
         )
 
     # ============================================================
-    # 5. CLIENT METRICS (POST-RUN ONLY)
+    # 5. CLIENT METRICS
     # ============================================================
     section("Client Performance Metrics")
 
@@ -302,13 +302,20 @@ def main():
     kv("Confidence", decision_obj["confidence"])
 
     # ============================================================
-    # 8. CAUSAL CHAIN PRINT
+    # 8. CAUSAL CHAIN PRINT (SAFE)
     # ============================================================
     print("\n▶ Causal Chain", flush=True)
     for i, step in enumerate(causal_chain, 1):
         print(f"\n{i}. {step['step']}", flush=True)
-        for k, v in (step.get("evidence") or {}).items():
-            print(f"   Evidence: {k} = {v}", flush=True)
+
+        ev = step.get("evidence")
+
+        if isinstance(ev, dict):
+            for k, v in ev.items():
+                print(f"   Evidence: {k} = {v}", flush=True)
+        elif isinstance(ev, str):
+            print(f"   Evidence: {ev}", flush=True)
+
         if "impact" in step:
             print(f"   Impact: {step['impact']}", flush=True)
 
