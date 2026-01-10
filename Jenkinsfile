@@ -84,6 +84,8 @@ FINAL CLI ARGS
 ${cliArgs}
 """
                     env.CLI_ARGS = cliArgs
+                    env.ENVIRONMENT = envValue
+                    env.LOAD_PROFILE = profileValue
                 }
             }
         }
@@ -112,7 +114,27 @@ ${cliArgs}
         }
 
         /* ============================
-         * STAGE 5 — Run JMeter
+         * STAGE 5 — Pre-flight Reasoning
+         * ============================ */
+        stage('Pre-flight Reasoning') {
+            steps {
+                sh """
+                    ${DOCKER_CLI} run --rm \
+                      -v "${WORKSPACE}:${WORKDIR}" \
+                      -w ${WORKDIR} \
+                      -e ENVIRONMENT=${env.ENVIRONMENT} \
+                      -e LOAD_PROFILE=${env.LOAD_PROFILE} \
+                      -e TARGET_HOST=${params.TARGET_HOST ?: 'localhost'} \
+                      -e REASONING_PHASE=preflight \
+                      -e PYTHONPATH=${WORKDIR} \
+                      ${IMAGE_NAME} \
+                      python3 -m reasoning.main
+                """
+            }
+        }
+
+        /* ============================
+         * STAGE 6 — Run JMeter
          * ============================ */
         stage('Run JMeter') {
             steps {
@@ -151,7 +173,27 @@ ${cliArgs}
         }
 
         /* ============================
-         * STAGE 6 — Executive Summary
+         * STAGE 7 — Post-run Reasoning
+         * ============================ */
+        stage('Post-run Reasoning') {
+            steps {
+                sh """
+                    ${DOCKER_CLI} run --rm \
+                      -v "${WORKSPACE}:${WORKDIR}" \
+                      -w ${WORKDIR} \
+                      -e ENVIRONMENT=${env.ENVIRONMENT} \
+                      -e LOAD_PROFILE=${env.LOAD_PROFILE} \
+                      -e TARGET_HOST=${params.TARGET_HOST ?: 'localhost'} \
+                      -e REASONING_PHASE=postrun \
+                      -e PYTHONPATH=${WORKDIR} \
+                      ${IMAGE_NAME} \
+                      python3 -m reasoning.main
+                """
+            }
+        }
+
+        /* ============================
+         * STAGE 8 — Executive Summary
          * ============================ */
         stage('Generate Executive Summary') {
             steps {
@@ -168,19 +210,20 @@ ${cliArgs}
         }
 
         /* ============================
-         * STAGE 7 — Package & Archive Reports
+         * STAGE 9 — Package & Archive Reports
          * ============================ */
         stage('Archive Results') {
             steps {
-
-                /* Create ONE distributable ZIP */
                 sh '''
                     cd output
                     rm -f performance-reports.zip
-                    zip -r performance-reports.zip dashboard executive generated-test-plan.jmx
+                    zip -r performance-reports.zip \
+                        dashboard \
+                        executive \
+                        reasoning \
+                        generated-test-plan.jmx
                 '''
 
-                /* Archive ONLY what users should download */
                 archiveArtifacts artifacts: 'output/performance-reports.zip', fingerprint: true
                 archiveArtifacts artifacts: 'output/results.jtl', fingerprint: true
 
@@ -191,16 +234,16 @@ ${cliArgs}
    Artifacts → performance-reports.zip
 
 📊 JMeter Dashboard:
-   - Unzip
-   - Open: dashboard/index.html (locally)
+   dashboard/index.html
 
 📄 Executive Summary:
-   - Unzip
-   - Open: executive/index.html (locally)
+   executive/index.html
+
+🧠 Performance Reasoning:
+   reasoning/
 
 ⚠️ IMPORTANT:
    Do NOT open reports inside Jenkins UI.
-   Jenkins blocks JS/CSS for security reasons.
 
 =================================================
 """
@@ -210,10 +253,10 @@ ${cliArgs}
 
     post {
         success {
-            echo "🎉 Pipeline completed successfully (Docker-based)"
+            echo "🎉 Pipeline completed successfully"
         }
         failure {
-            echo "❌ Pipeline failed — check logs"
+            echo "❌ Pipeline failed — see reasoning report for explanation"
         }
     }
 }

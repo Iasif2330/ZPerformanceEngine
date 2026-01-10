@@ -1,0 +1,20 @@
+server_rules:
+  cpu:
+    minor_pct: 30
+    severe_pct: 60
+
+  memory:
+    minor_pct: 25
+    severe_pct: 50
+
+  threads:
+    minor_util_pct: 80
+    severe_util_pct: 95
+
+  database:
+    minor_wait_ms: 50
+    severe_wait_ms: 200
+
+  load_balancer:
+    minor_queue_p95_ms: 50
+    severe_queue_p95_ms: 150

@@ -1,0 +1,16 @@
+network:
+  rtt:
+    avg_ms_max: 50
+    p95_ms_max: 100
+
+  packet_loss:
+    max_pct: 0.5
+
+  retransmissions:
+    max_pct: 1.0
+
+  load_balancer:
+    queue_time_p95_ms_max: 50
+
+behavior:
+  fail_fast: true

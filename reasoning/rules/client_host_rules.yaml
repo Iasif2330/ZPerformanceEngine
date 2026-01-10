@@ -1,0 +1,14 @@
+client_host:
+  cpu:
+    avg_pct_max: 75
+    max_pct_max: 90
+
+  memory:
+    avg_pct_max: 80
+    max_pct_max: 90
+
+  os:
+    load_avg_per_core_max: 1.5
+
+behavior:
+  fail_fast: true

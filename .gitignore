@@ -1,16 +1,80 @@
-# Runtime output
+# ==============================
+# Runtime / Generated Output
+# ==============================
 output/
 temp/
 
-# JMeter artifacts
+# ==============================
+# JMeter Artifacts
+# ==============================
 *.jmx
 *.jtl
+*.csv
+*.zip
 
-# Local / legacy tools
-jmeter/
-apache-jmeter-*
+# ==============================
+# Python Runtime / Cache
+# ==============================
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# ==============================
+# Python Build / Packaging
+# ==============================
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ==============================
+# Coverage / Test Artifacts
+# ==============================
+.coverage
+coverage.xml
+htmlcov/
+
+# ==============================
+# Virtual Environments
+# ==============================
+venv/
+.env
+.env.*
+pyvenv.cfg
 jenkins-python-venv/
 
-# OS / Python noise
+# ==============================
+# Local / Legacy Tools
+# ==============================
+jmeter/
+apache-jmeter-*
+
+# ==============================
+# OS / Editor Noise
+# ==============================
 .DS_Store
-__pycache__/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ==============================
+# Docker / Build Artifacts
+# ==============================
+*.tar
+*.log
+*.pid
+
+# ==============================
+# Reasoning Engine — Generated Data
+# ==============================
+# Baseline snapshots are runtime data and MUST NOT be versioned
+reasoning/baselines/snapshots/
+
+# ==============================
+# Allowlist: Reasoning Policies (IMPORTANT)
+# ==============================
+!reasoning/rules/*.yaml
+!reasoning/baselines/baseline_policy.yaml
+!reasoning/decisions/auto_accept_rules.yaml

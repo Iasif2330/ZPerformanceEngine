@@ -1,0 +1,19 @@
+baseline:
+  type: rolling                # rolling | snapshot
+
+  rolling:
+    window_size: 5             # how many recent runs form the baseline
+    min_required: 3            # minimum runs before baseline is valid
+    aggregation: median        # median | average
+
+    retention:
+      max_snapshots: 10        # HARD LIMIT: max stored snapshots per scope
+
+  snapshot:
+    name: null                 # e.g. release_1.4.json (manual, optional)
+
+scope:
+  match_current_run: true      # baseline scope auto-matches env & load profile
+
+storage:
+  path: reasoning/baselines/snapshots

@@ -1,0 +1,21 @@
+auto_accept:
+  # Client-side conditions
+  max_client_anomalies: 1
+  allow_no_baseline: false
+
+  # Server-side corroboration rules
+  require_server_confirmation: true
+  max_server_signals: 1
+
+  # Severity handling
+  allow_minor_deviation_only: true
+  severe_multiplier: 2.0
+
+confidence:
+  high:
+    client_anomaly: 1
+    server_signals: 1
+
+  medium:
+    client_anomaly: 1
+    server_signals: 0
