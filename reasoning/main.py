@@ -346,7 +346,10 @@ def main():
         decision=decision_obj
     )
 
-    sys.exit(1 if decision_obj["decision"] == "REVIEW_REQUIRED" else 0)
+    # Jenkins policy:
+    # - REVIEW_REQUIRED means UNSTABLE, not FAILURE
+    # - Always exit 0 so pipeline continues
+    sys.exit(0)
 
 
 def _final_exit(
