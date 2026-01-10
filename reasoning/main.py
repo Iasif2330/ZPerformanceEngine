@@ -295,6 +295,13 @@ def main():
         client_anomaly=anomaly_result,
         server_correlation=None
     )
+    # Handle bootstrap case explicitly
+    if anomaly_result["status"] == "NO_BASELINE":
+        decision_obj["decision"] = "ACCEPT"
+        decision_obj["confidence"] = "LOW"
+        decision_obj.setdefault("reasons", []).append(
+            "Baseline not yet established; accepting run for bootstrap"
+    )
 
     decision_obj["causal_chain"] = causal_chain
 
