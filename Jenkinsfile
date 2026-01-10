@@ -1,6 +1,44 @@
 pipeline {
     agent any
 
+    parameters {
+        string(
+            name: 'ENVIRONMENT',
+            defaultValue: 'autoprod',
+            description: 'Logical environment (autoprod, staging, prod)'
+        )
+        string(
+            name: 'LOAD_PROFILE',
+            defaultValue: 'baseline-minimal',
+            description: 'Load profile name'
+        )
+        string(
+            name: 'TARGET_HOST',
+            defaultValue: 'localhost',
+            description: 'Target host / base URL for network health checks (e.g. api.mycompany.com)'
+        )
+        booleanParam(
+            name: 'LOOPLOGIN',
+            defaultValue: true,
+            description: 'Loop login requests'
+        )
+        booleanParam(
+            name: 'DEBUG',
+            defaultValue: false,
+            description: 'Enable debug logging'
+        )
+        string(
+            name: 'DURATION',
+            defaultValue: '',
+            description: 'Test duration (ms), blank = default'
+        )
+        string(
+            name: 'SELECTED_APIS',
+            defaultValue: '',
+            description: 'Comma-separated API list'
+        )
+    }
+
     environment {
         DOCKER_CLI = "/Applications/Docker.app/Contents/Resources/bin/docker"
         IMAGE_NAME = "zperformance-engine"
