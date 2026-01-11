@@ -77,6 +77,21 @@ pipeline {
                     } else if (!nonLoginApis.isEmpty()) {
                         cliArgs += "-Dapis=${nonLoginApis.join(',')} "
                     }
+                    // Resolve TARGET_HOST from environments.yaml
+                    // ============================
+                    def envYaml = readYaml file: 'config/environments.yaml'
+
+                    if (!envYaml.containsKey(envValue)) {
+                        error "ENVIRONMENT '${envValue}' not found in config/environments.yaml"
+                    }
+
+                    def host = envYaml[envValue].host
+                    if (!host) {
+                        error "No 'host' defined for ENVIRONMENT '${envValue}' in environments.yaml"
+                    }
+
+                    // Export for later stages
+                    env.TARGET_HOST = host
 
                     echo """
 FINAL CLI ARGS

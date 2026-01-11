@@ -1,5 +1,6 @@
 qa:
   baseUrl: "https://qa.ontic.ai"
+  host: "qa.ontic.ai"
   usersFile: "config/users/qa.csv"
   payloads:
     login: "data/login-payload.json"
@@ -10,6 +11,7 @@ qa:
 
 autoprod:
   baseUrl: "https://autoprod.ontic.ai"
+  host: "autoprod.ontic.ai"
   usersFile: "config/users/autoprod.csv"
   payloads:
     login: "data/login-payload.json"
@@ -22,6 +24,7 @@ autoprod:
 
 dev:
   baseUrl: "https://devapp.qaontic.com"
+  host: "devapp.qaontic.com"
   usersFile: "config/users/dev.csv"
   payloads:
     login: "data/login-payload.json"
