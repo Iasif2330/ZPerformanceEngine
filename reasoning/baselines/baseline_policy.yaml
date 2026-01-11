@@ -2,12 +2,12 @@ baseline:
   type: rolling                # rolling | snapshot
 
   rolling:
-    window_size: 5             # how many recent runs form the baseline
-    min_required: 3            # minimum runs before baseline is valid
+    window_size: 1             # how many recent runs form the baseline
+    min_required: 1            # minimum runs before baseline is valid
     aggregation: median        # median | average
 
     retention:
-      max_snapshots: 10        # HARD LIMIT: max stored snapshots per scope
+      max_snapshots: 5        # HARD LIMIT: max stored snapshots per scope
 
   snapshot:
     name: null                 # e.g. release_1.4.json (manual, optional)
