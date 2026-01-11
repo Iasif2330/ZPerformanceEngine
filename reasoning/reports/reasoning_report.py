@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict
 import json
 import os
@@ -14,114 +14,143 @@ class ReasoningReport:
         self,
         output_dir: str,
         metadata: Dict,
-        client_host: Dict,
-        network: Dict,
-        client_metrics: Dict,
-        baseline: Dict,
-        anomaly: Dict,
-        server_correlation: Dict,
+        client_host: Dict | None,
+        network: Dict | None,
+        client_metrics: Dict | None,
+        baseline: Dict | None,
+        anomaly: Dict | None,
+        server_correlation: Dict | None,
         decision: Dict
     ) -> None:
 
         os.makedirs(output_dir, exist_ok=True)
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
 
-        lines = []
+        lines: list[str] = []
 
         # ================= Metadata =================
         lines.append("=== PERFORMANCE REASONING REPORT ===\n")
-        lines.append(f"Environment      : {metadata['environment']}")
-        lines.append(f"Load Profile     : {metadata['load_profile']}")
-        lines.append(f"Run ID           : {metadata['run_id']}")
+        lines.append(f"Environment      : {metadata.get('environment')}")
+        lines.append(f"Load Profile     : {metadata.get('load_profile')}")
+        lines.append(f"Run ID           : {metadata.get('run_id')}")
         lines.append(f"Generated At     : {timestamp} UTC\n")
 
         # ================= Client Host =================
         lines.append("== Load Generator Health ==")
-        lines.append(f"Status: {client_host.get('status')}")
 
-        cpu = client_host.get("cpu", {})
-        mem = client_host.get("memory", {})
-        os_metrics = client_host.get("os", {})
+        if not client_host:
+            lines.append("Status: NOT_EVALUATED\n")
+        else:
+            lines.append(f"Status: {client_host.get('status')}")
 
-        if cpu:
-            lines.append(f"CPU avg %        : {cpu.get('avg_pct')}")
-            lines.append(f"CPU max %        : {cpu.get('max_pct')}")
-        if mem:
-            lines.append(f"Memory avg %     : {mem.get('avg_pct')}")
-            lines.append(f"Memory max %     : {mem.get('max_pct')}")
-        if os_metrics:
-            lines.append(f"OS load avg (1m) : {os_metrics.get('load_avg_1m')}")
+            cpu = client_host.get("cpu")
+            mem = client_host.get("memory")
+            os_metrics = client_host.get("os")
 
-        for issue in client_host.get("issues", []):
-            lines.append(f"- {issue}")
-        lines.append("")
+            if cpu:
+                lines.append(f"CPU avg %        : {cpu.get('avg_pct')}")
+                lines.append(f"CPU max %        : {cpu.get('max_pct')}")
+            if mem:
+                lines.append(f"Memory avg %     : {mem.get('avg_pct')}")
+                lines.append(f"Memory max %     : {mem.get('max_pct')}")
+            if os_metrics:
+                lines.append(f"OS load avg (1m) : {os_metrics.get('load_avg_1m')}")
+
+            for issue in client_host.get("issues", []):
+                lines.append(f"- {issue}")
+
+            lines.append("")
 
         # ================= Network =================
         lines.append("== Network Path Health ==")
-        network_status = network.get("status") if network else None
-        lines.append(f"Status: {network_status}")
 
-        if network_status == "NETWORK_OK":
-            rtt = network.get("rtt", {})
-            pkt = network.get("packet_loss", {})
+        if not network:
+            lines.append("Status: NOT_EVALUATED\n")
+        else:
+            status = network.get("status")
+            lines.append(f"Status: {status}")
 
-            lines.append(f"RTT avg (ms)     : {rtt.get('avg_ms')}")
-            lines.append(f"RTT p95 (ms)     : {rtt.get('p95_ms')}")
-            lines.append(f"Packet loss %   : {pkt.get('pct')}")
+            # Accept BOTH normalized telemetry and flattened evidence
+            rtt = (
+                network.get("rtt", {}).get("avg_ms")
+                or network.get("rtt_avg_ms")
+            )
+            pkt = (
+                network.get("packet_loss", {}).get("pct")
+                or network.get("packet_loss_pct")
+            )
 
-        for issue in network.get("issues", []) if network else []:
-            lines.append(f"- {issue}")
-        lines.append("")
+            if rtt is not None:
+                lines.append(f"RTT avg (ms)     : {rtt}")
+            else:
+                lines.append("RTT avg (ms)     : UNAVAILABLE")
+
+            if pkt is not None:
+                lines.append(f"Packet loss %   : {pkt}")
+            else:
+                lines.append("Packet loss %   : UNAVAILABLE")
+
+            for issue in network.get("issues", []):
+                lines.append(f"- {issue}")
+
+            lines.append("")
 
         # ================= Client Metrics =================
         lines.append("== Client-Side Metrics ==")
 
-        if client_metrics:
+        if not client_metrics:
+            lines.append("Client metrics not collected.\n")
+        else:
             latency = client_metrics.get("latency", {})
+            throughput = client_metrics.get("throughput", {})
+            errors = client_metrics.get("errors", {})
+
             lines.append(f"avg_ms           : {latency.get('avg_ms')}")
             lines.append(f"median_ms        : {latency.get('median_ms')}")
             lines.append(f"p95_ms           : {latency.get('p95_ms')}")
             lines.append(f"p99_ms           : {latency.get('p99_ms')}")
-            lines.append(
-                f"Throughput       : {client_metrics['throughput']['tps']} TPS"
-            )
-            lines.append(
-                f"Error Rate       : {client_metrics['errors']['error_rate_pct']}%"
-            )
-        else:
-            lines.append("Client metrics unavailable.")
-        lines.append("")
+            lines.append(f"Throughput       : {throughput.get('tps')} TPS")
+            lines.append(f"Error Rate       : {errors.get('error_rate_pct')}%")
+            lines.append("")
 
         # ================= Anomaly =================
         lines.append("== Anomaly Detection ==")
-        if anomaly:
+
+        if not anomaly:
+            lines.append("Anomaly detection not executed.\n")
+        else:
             lines.append(f"Status: {anomaly.get('status')}")
+
             for name, info in anomaly.get("anomalies", {}).items():
-                deviation = info.get("deviation_pct")
-                if deviation is not None:
-                    lines.append(f"- {name}: deviation {deviation}%")
+                if "current" in info and "threshold_pct" in info:
+                    lines.append(
+                        f"- {name}: {info['current']}% "
+                        f"(threshold {info['threshold_pct']}%)"
+                    )
                 else:
                     lines.append(f"- {name}: threshold breached")
-        else:
-            lines.append("Anomaly detection unavailable.")
-        lines.append("")
+
+            lines.append("")
 
         # ================= Server Correlation =================
         lines.append("== Server Correlation ==")
 
-        if server_correlation:
+        if server_correlation is None:
+            lines.append(
+                "Server-side correlation not evaluated for this run."
+            )
+        elif not server_correlation:
+            lines.append(
+                "Server metrics collected. "
+                "No automated server-side correlation signals identified."
+            )
+        else:
             lines.append(f"Status: {server_correlation.get('status')}")
             for sig in server_correlation.get("signals", []):
                 lines.append(
                     f"- {sig['metric']}: {sig['severity']} "
                     f"(current {sig['current']}, baseline {sig['baseline']})"
                 )
-        else:
-            lines.append(
-                "Server metrics collected. "
-                "No automated server-side correlation signals identified "
-                "for this phase."
-            )
 
         lines.append("")
 
@@ -129,6 +158,7 @@ class ReasoningReport:
         lines.append("== Final Decision ==")
         lines.append(f"Decision  : {decision.get('decision')}")
         lines.append(f"Confidence: {decision.get('confidence')}")
+
         for r in decision.get("reasons", []):
             lines.append(f"- {r}")
 
