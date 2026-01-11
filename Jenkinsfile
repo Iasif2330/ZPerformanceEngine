@@ -78,21 +78,21 @@ pipeline {
                         cliArgs += "-Dapis=${nonLoginApis.join(',')} "
                     }
                     // ============================
-                    // Resolve TARGET_HOST from environments.yaml (NO Jenkins plugin)
+                    // Resolve TARGET_HOST from environments.yaml (sandbox-safe)
                     // ============================
-                    def envYamlText = readFile 'config/environments.yaml'
+                    def host = sh(
+                        script: """
+                            awk '
+                                \$1 == "${envValue}:" { in_env=1; next }
+                                in_env && \$1 == "host:" { print \$2; exit }
+                                in_env && /^[^ ]/ { exit }
+                            ' config/environments.yaml
+                        """,
+                        returnStdout: true
+                    ).trim()
 
-                    // Use SnakeYAML directly (no readYaml)
-                    def yaml = new org.yaml.snakeyaml.Yaml()
-                    def envYaml = yaml.load(envYamlText)
-
-                    if (!(envYaml instanceof Map) || !envYaml.containsKey(envValue)) {
-                        error "ENVIRONMENT '${envValue}' not found in config/environments.yaml"
-                    }
-
-                    def host = envYaml[envValue]?.host
                     if (!host) {
-                        error "No 'host' defined for ENVIRONMENT '${envValue}' in environments.yaml"
+                        error "Failed to resolve host for ENVIRONMENT '${envValue}' from config/environments.yaml"
                     }
 
                     // Export for later stages
