@@ -1,93 +1,84 @@
 # reasoning/collectors/network_collector.py
 
-import subprocess
-import re
-import psutil
-from typing import Dict, Optional
+import socket
+import time
+from typing import Dict
 
 
 class NetworkCollector:
     """
-    Collects independent client → server network telemetry.
-    Phase 1 uses OS-level signals (ping, TCP stats).
+    Collects client → server network telemetry using TCP probes.
+    This is CI-safe, Docker-safe, and does NOT rely on ICMP.
     """
 
-    def __init__(self, target_host: str):
+    def __init__(self, target_host: str, port: int = 443):
         self.target_host = target_host
+        self.port = port
 
-    def collect(self, ping_count: int = 10) -> Dict:
-        rtt = self._collect_rtt(ping_count)
-        packet_loss = self._collect_packet_loss(ping_count)
-        retrans = self._collect_retransmissions()
+    def collect(self, attempts: int = 5, timeout: int = 3) -> Dict:
+        rtt = self._collect_rtt(attempts, timeout)
+        packet_loss = self._collect_packet_loss(attempts, timeout)
 
         return {
             "rtt": rtt,
             "packet_loss": packet_loss,
-            "retransmissions": retrans,
+            "retransmissions": {
+                "pct": None  # Phase 2 (OS / APM level)
+            },
             "load_balancer": {
-                "queue_time_p95_ms": None  # Phase 2 (APM/LB APIs)
+                "queue_time_p95_ms": None  # Phase 2 (APM / LB APIs)
             }
         }
 
-    # -------------------------
-    # Internal collectors
-    # -------------------------
+    # -------------------------------------------------
+    # Internal collectors (TCP-based)
+    # -------------------------------------------------
 
-    def _collect_rtt(self, count: int) -> Dict:
+    def _collect_rtt(self, attempts: int, timeout: int) -> Dict:
         """
-        Collect RTT using ICMP ping.
+        Measure TCP connect latency as RTT proxy.
         """
-        try:
-            result = subprocess.check_output(
-                ["ping", "-c", str(count), self.target_host],
-                stderr=subprocess.STDOUT,
-                text=True
-            )
-        except Exception:
+        times_ms = []
+
+        for _ in range(attempts):
+            try:
+                start = time.time()
+                sock = socket.create_connection(
+                    (self.target_host, self.port),
+                    timeout=timeout
+                )
+                sock.close()
+                times_ms.append((time.time() - start) * 1000)
+            except Exception:
+                pass
+
+        if not times_ms:
             return {"avg_ms": None, "p95_ms": None}
 
-        times = [
-            float(t)
-            for t in re.findall(r"time=([\d.]+) ms", result)
-        ]
-
-        if not times:
-            return {"avg_ms": None, "p95_ms": None}
-
-        times.sort()
-        p95_index = int(0.95 * len(times)) - 1
+        times_ms.sort()
+        p95_index = max(0, int(0.95 * len(times_ms)) - 1)
 
         return {
-            "avg_ms": round(sum(times) / len(times), 2),
-            "p95_ms": round(times[p95_index], 2)
+            "avg_ms": round(sum(times_ms) / len(times_ms), 2),
+            "p95_ms": round(times_ms[p95_index], 2)
         }
 
-    def _collect_packet_loss(self, count: int) -> Dict:
+    def _collect_packet_loss(self, attempts: int, timeout: int) -> Dict:
         """
-        Packet loss derived from ping summary.
+        Packet loss derived from failed TCP connection attempts.
         """
-        try:
-            result = subprocess.check_output(
-                ["ping", "-c", str(count), self.target_host],
-                stderr=subprocess.STDOUT,
-                text=True
-            )
-        except Exception:
-            return {"pct": None}
+        failures = 0
 
-        match = re.search(r"(\d+)% packet loss", result)
-        if not match:
-            return {"pct": None}
+        for _ in range(attempts):
+            try:
+                sock = socket.create_connection(
+                    (self.target_host, self.port),
+                    timeout=timeout
+                )
+                sock.close()
+            except Exception:
+                failures += 1
 
-        return {"pct": float(match.group(1))}
-
-    def _collect_retransmissions(self) -> Dict:
-        """
-        TCP retransmissions via OS stats.
-        """
-        try:
-            tcp = psutil.net_io_counters()
-            # psutil does not expose retrans directly on all OSes
-            return {"pct": None}
-        except Exception:
-            return {"pct": None}
+        return {
+            "pct": round((failures / attempts) * 100, 2)
+        }
