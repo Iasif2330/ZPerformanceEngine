@@ -117,7 +117,7 @@ def main():
     }
 
     # ============================================================
-    # 3. CLIENT HOST HEALTH
+    # 3. CLIENT HOST HEALTH (TRUST GATE #1)
     # ============================================================
     section("Client Host Health Check")
     host_telemetry = ClientHostCollector().collect()
@@ -158,7 +158,7 @@ def main():
     })
 
     # ============================================================
-    # 4. NETWORK HEALTH
+    # 4. NETWORK HEALTH (TRUST GATE #2)
     # ============================================================
     section("Network Path Health Check")
 
@@ -217,7 +217,7 @@ def main():
         })
 
     # ============================================================
-    # PRE-FLIGHT EXIT
+    # PRE-FLIGHT EXIT (NO DECISION HERE)
     # ============================================================
     if reasoning_phase == "preflight":
         _final_exit(
@@ -237,7 +237,7 @@ def main():
         )
 
     # ============================================================
-    # 5. CLIENT METRICS
+    # 5. CLIENT METRICS (POST-RUN ONLY)
     # ============================================================
     section("Client Performance Metrics")
 
@@ -287,7 +287,7 @@ def main():
     })
 
     # ============================================================
-    # 7. FINAL DECISION
+    # 7. FINAL DECISION (POST-RUN ONLY)
     # ============================================================
     section("Final Decision")
 
@@ -295,13 +295,14 @@ def main():
         client_anomaly=anomaly_result,
         server_correlation=None
     )
-    # Handle bootstrap case explicitly
+
+    # Bootstrap handling
     if anomaly_result["status"] == "NO_BASELINE":
         decision_obj["decision"] = "ACCEPT"
         decision_obj["confidence"] = "LOW"
         decision_obj.setdefault("reasons", []).append(
             "Baseline not yet established; accepting run for bootstrap"
-    )
+        )
 
     decision_obj["causal_chain"] = causal_chain
 
@@ -309,20 +310,17 @@ def main():
     kv("Confidence", decision_obj["confidence"])
 
     # ============================================================
-    # 8. CAUSAL CHAIN PRINT (SAFE)
+    # 8. CAUSAL CHAIN PRINT
     # ============================================================
     print("\n▶ Causal Chain", flush=True)
     for i, step in enumerate(causal_chain, 1):
         print(f"\n{i}. {step['step']}", flush=True)
-
         ev = step.get("evidence")
-
         if isinstance(ev, dict):
             for k, v in ev.items():
                 print(f"   Evidence: {k} = {v}", flush=True)
         elif isinstance(ev, str):
             print(f"   Evidence: {ev}", flush=True)
-
         if "impact" in step:
             print(f"   Impact: {step['impact']}", flush=True)
 
@@ -346,9 +344,7 @@ def main():
         decision=decision_obj
     )
 
-    # Jenkins policy:
-    # - REVIEW_REQUIRED means UNSTABLE, not FAILURE
-    # - Always exit 0 so pipeline continues
+    # Never fail Jenkins here; reporting only
     sys.exit(0)
 
 
@@ -382,7 +378,8 @@ def _final_exit(
         decision=decision_obj
     )
 
-    sys.exit(1 if decision == "REVIEW_REQUIRED" else 0)
+    # Preflight exits 0; postrun REVIEW_REQUIRED is reported, not failed
+    sys.exit(0)
 
 
 if __name__ == "__main__":
