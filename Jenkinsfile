@@ -77,6 +77,22 @@ pipeline {
                     } else if (!nonLoginApis.isEmpty()) {
                         cliArgs += "-Dapis=${nonLoginApis.join(',')} "
                     }
+                    // Resolve TARGET_HOST from environments.yaml
+                    // ============================
+                    def envYaml = readYaml file: 'config/environments.yaml'
+
+                    if (!envYaml.containsKey(envValue)) {
+                        error "ENVIRONMENT '${envValue}' not found in config/environments.yaml"
+                    }
+
+                    def host = envYaml[envValue].host
+                    if (!host) {
+                        error "No 'host' defined for ENVIRONMENT '${envValue}' in environments.yaml"
+                    }
+
+                    // Export for later stages
+                    env.TARGET_HOST = host
+
 
                     echo """
 FINAL CLI ARGS
@@ -124,7 +140,7 @@ ${cliArgs}
                       -w ${WORKDIR} \
                       -e ENVIRONMENT=${env.ENVIRONMENT} \
                       -e LOAD_PROFILE=${env.LOAD_PROFILE} \
-                      -e TARGET_HOST=${params.TARGET_HOST ?: 'localhost'} \
+                      -e TARGET_HOST=${env.TARGET_HOST} \
                       -e REASONING_PHASE=preflight \
                       -e PYTHONPATH=${WORKDIR} \
                       ${IMAGE_NAME} \
@@ -183,7 +199,7 @@ ${cliArgs}
                       -w ${WORKDIR} \
                       -e ENVIRONMENT=${env.ENVIRONMENT} \
                       -e LOAD_PROFILE=${env.LOAD_PROFILE} \
-                      -e TARGET_HOST=${params.TARGET_HOST ?: 'localhost'} \
+                      -e TARGET_HOST=${env.TARGET_HOST} \
                       -e REASONING_PHASE=postrun \
                       -e PYTHONPATH=${WORKDIR} \
                       ${IMAGE_NAME} \
