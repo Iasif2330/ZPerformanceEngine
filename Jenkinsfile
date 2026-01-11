@@ -78,25 +78,25 @@ pipeline {
                         cliArgs += "-Dapis=${nonLoginApis.join(',')} "
                     }
                     // ============================
-                    // Resolve TARGET_HOST from environments.yaml (sandbox-safe)
-                    // ============================
-                    def host = sh(
-                        script: """
-                            awk '
-                                \$1 == "${envValue}:" { in_env=1; next }
-                                in_env && \$1 == "host:" { print \$2; exit }
-                                in_env && /^[^ ]/ { exit }
-                            ' config/environments.yaml
-                        """,
-                        returnStdout: true
-                    ).trim()
+                // Resolve TARGET_HOST from environments.yaml (sandbox-safe)
+                // ============================
+                def host = sh(
+                    script: """
+                        awk '
+                            \$1 == "${envValue}:" { in_env=1; next }
+                            in_env && \$1 == "host:" { print \$2; exit }
+                            in_env && /^[^ ]/ { exit }
+                        ' config/environments.yaml
+                    """,
+                    returnStdout: true
+                ).trim()
 
-                    if (!host) {
-                        error "Failed to resolve host for ENVIRONMENT '${envValue}' from config/environments.yaml"
-                    }
+                if (!host) {
+                    error "Failed to resolve host for ENVIRONMENT '${envValue}' from config/environments.yaml"
+                }
 
-                    // Export for later stages
-                    env.TARGET_HOST = host
+                // Export for later stages
+                env.TARGET_HOST = host
 
 
                     echo """
@@ -143,6 +143,7 @@ ${cliArgs}
                     ${DOCKER_CLI} run --rm \
                       -v "${WORKSPACE}:${WORKDIR}" \
                       -w ${WORKDIR} \
+                      -e BUILD_NUMBER=${env.BUILD_NUMBER} \
                       -e ENVIRONMENT=${env.ENVIRONMENT} \
                       -e LOAD_PROFILE=${env.LOAD_PROFILE} \
                       -e TARGET_HOST=${env.TARGET_HOST} \
@@ -202,6 +203,7 @@ ${cliArgs}
                     ${DOCKER_CLI} run --rm \
                       -v "${WORKSPACE}:${WORKDIR}" \
                       -w ${WORKDIR} \
+                      -e BUILD_NUMBER=${env.BUILD_NUMBER} \
                       -e ENVIRONMENT=${env.ENVIRONMENT} \
                       -e LOAD_PROFILE=${env.LOAD_PROFILE} \
                       -e TARGET_HOST=${env.TARGET_HOST} \
