@@ -438,17 +438,23 @@ def _final_exit(
             "run_id": run_id,
             "generated_at": datetime.now(timezone.utc).isoformat(),
 
-            # ✅ ADD THIS
-            "server_metrics_window": {
-                "start_ts": start_ts,
-                "end_ts": end_ts,
-            },
+            # ✅ ONLY include server window if it exists
+            **(
+                {
+                    "server_metrics_window": {
+                        "start_ts": start_ts,
+                        "end_ts": end_ts,
+                    }
+                }
+                if "start_ts" in locals() and "end_ts" in locals()
+                else {}
+            ),
         },
-        client_host=host_validation,
-        network=network_validation,
+        client_host=client_host,
+        network=network,
         client_metrics=client_metrics,
-        baseline=baseline_metrics,
-        anomaly=anomaly_result,
+        baseline=baseline,
+        anomaly=anomaly,
         server_correlation=server_correlation,
         decision=decision_obj
     )
