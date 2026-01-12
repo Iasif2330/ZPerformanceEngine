@@ -122,49 +122,62 @@ class ServerCollector:
         end_ts: int,
     ) -> Dict:
         """
-        Execute Grafana datasource queries.
+        Execute PromQL queries via Grafana datasource proxy.
         """
 
-        payload = {
-            "queries": [
-                {
-                    "refId": q["refId"],
-                    "datasource": {"uid": self.datasource_uid},
-                    "expr": q["expr"],
-                    "format": "time_series",
-                }
-                for q in queries
-            ],
-            "from": start_ts * 1000,
-            "to": end_ts * 1000,
-        }
-
-        url = f"{self.grafana_url}/api/ds/query"
-
-        resp = requests.post(
-            url, headers=self.headers, json=payload, timeout=30
+        base_url = (
+            f"{self.grafana_url}/api/datasources/proxy/uid/"
+            f"{self.datasource_uid}/api/v1/query_range"
         )
-        resp.raise_for_status()
-        return resp.json()
+
+        step = max(1, int((end_ts - start_ts) / 60))
+        results = {}
+
+        for q in queries:
+            params = {
+                "query": q["expr"],
+                "start": start_ts,
+                "end": end_ts,
+                "step": step,
+            }
+
+            resp = requests.get(
+                base_url,
+                headers={"Authorization": f"Bearer {self.api_token}"},
+                params=params,
+                timeout=30,
+            )
+            resp.raise_for_status()
+
+            results[q["refId"]] = resp.json()
+
+        return {"results": results}
+
 
     def _normalize_response(self, raw: Dict) -> Dict:
         """
-        Normalize Grafana response into server signals.
+        Normalize Prometheus responses into server signals.
         """
 
         signals = []
 
-        for ref_id, data in raw.get("results", {}).items():
-            frames = data.get("frames", [])
-            if not frames:
+        for ref_id, resp in raw.get("results", {}).items():
+            data = resp.get("data", {})
+            series = data.get("result", [])
+
+            if not series:
                 continue
 
-            values = frames[0]["data"]["values"]
-            metrics = values[1]
-            if not metrics:
+            values = series[0].get("values", [])
+            if not values:
                 continue
 
-            value = metrics[-1]
+            _, value = values[-1]
+
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                continue
 
             signals.append(
                 {
