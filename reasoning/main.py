@@ -301,8 +301,11 @@ def main():
             end_ts=int(time())
         )
         # 👇 ADD THIS
-        for s in server_metrics.get("signals", []):
-            kv(f"Server {s['metric']}", s["current"])
+        if not server_metrics.get("signals"):
+            kv("Server metrics", "No matching Prometheus series found")
+        else:
+            for s in server_metrics["signals"]:
+                kv(f"Server {s['metric']}", s["current"])
 
         causal_chain.append({
             "step": "Server metrics collected",
