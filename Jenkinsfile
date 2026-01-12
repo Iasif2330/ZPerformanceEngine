@@ -9,7 +9,7 @@ pipeline {
         cron('0 2 * * *')   // runs daily at 02:00
 
         // 🔹 FOR TESTING ONLY (uncomment temporarily)
-        // cron('* * * * *')   // runs every minute
+        cron('* * * * *')   // runs every minute
     }
 
     /* ============================
