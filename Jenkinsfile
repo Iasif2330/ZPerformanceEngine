@@ -74,8 +74,13 @@ pipeline {
 
                     if (onlyLoginSelected) {
                         cliArgs += "-Dapis=login "
-                    } else if (!nonLoginApis.isEmpty()) {
+                    }
+                    else if (!nonLoginApis.isEmpty()) {
                         cliArgs += "-Dapis=${nonLoginApis.join(',')} "
+                    }
+                    else {
+                        // 🔒 AUTO-TRIGGER DEFAULTS (NO UI SELECTION)
+                        cliArgs += "-Dapis=login,allfeeds,crimedata,riskintelligence "
                     }
                     // ============================
                 // Resolve TARGET_HOST from environments.yaml (sandbox-safe)
