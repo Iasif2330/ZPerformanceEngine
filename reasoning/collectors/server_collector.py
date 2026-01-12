@@ -33,11 +33,6 @@ class ServerCollector:
         if not self.datasource_uid:
             raise ValueError("GRAFANA_DS_UID environment variable not set")
 
-        self.headers = {
-            "Authorization": f"Bearer {self.api_token}",
-            "Content-Type": "application/json",
-        }
-
     # ------------------------------------------------------------
     # PUBLIC API
     # ------------------------------------------------------------
@@ -51,21 +46,28 @@ class ServerCollector:
         """
         Collect server metrics for the anomaly time window.
 
-        :param environment: qa / stage / prod
-        :param service: service name / app label used in metrics
-        :param start_ts: epoch seconds
-        :param end_ts: epoch seconds
+        Metrics are aggregated over the full window [start_ts, end_ts]
+        using MAX aggregation (worst value during the test).
         """
 
         queries = self._build_queries(environment, service)
 
-        response = self._execute_queries(
+        raw_response = self._execute_queries(
             queries=queries,
             start_ts=start_ts,
             end_ts=end_ts,
         )
 
-        return self._normalize_response(response)
+        normalized = self._normalize_response(raw_response)
+
+        # ✅ Attach window metadata (safe, additive)
+        normalized["window"] = {
+            "start_ts": start_ts,
+            "end_ts": end_ts,
+            "duration_sec": end_ts - start_ts,
+        }
+
+        return normalized
 
     # ------------------------------------------------------------
     # INTERNALS
@@ -74,7 +76,7 @@ class ServerCollector:
     def _build_queries(self, environment: str, service: str) -> List[Dict]:
         return [
             {
-                # CPU usage as percentage (0–100)
+                # CPU usage percentage
                 "refId": "CPU",
                 "expr": (
                     'sum(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) '
@@ -83,7 +85,7 @@ class ServerCollector:
                 ),
             },
             {
-                # Memory usage as percentage (0–100)
+                # Memory usage percentage
                 "refId": "MEM",
                 "expr": (
                     'sum(container_memory_working_set_bytes{container!="",pod!=""}) '
@@ -96,12 +98,12 @@ class ServerCollector:
                 "expr": 'avg(jvm_threads_current)',
             },
             {
-                # HTTP 5xx errors per second
+                # HTTP 5xx error rate
                 "refId": "HTTP_5XX",
                 "expr": 'sum(rate(http_responseCodes_serverError_total[5m]))',
             },
             {
-                # P95 latency in ms
+                # P95 latency (ms)
                 "refId": "HTTP_LAT_P95",
                 "expr": (
                     'histogram_quantile(0.95, '
@@ -109,8 +111,6 @@ class ServerCollector:
                 ),
             },
         ]
-
-
 
     def _execute_queries(
         self,
@@ -150,10 +150,13 @@ class ServerCollector:
 
         return {"results": results}
 
-
     def _normalize_response(self, raw: Dict) -> Dict:
         """
         Normalize Prometheus responses into server signals.
+
+        IMPORTANT:
+        - We take MAX value over the entire time window
+        - This represents the WORST observed server condition
         """
 
         signals = []
@@ -169,17 +172,24 @@ class ServerCollector:
             if not values:
                 continue
 
-            _, value = values[-1]
+            # Extract numeric values across the time window
+            numeric_values = []
+            for _, v in values:
+                try:
+                    numeric_values.append(float(v))
+                except (TypeError, ValueError):
+                    continue
 
-            try:
-                value = float(value)
-            except (TypeError, ValueError):
+            if not numeric_values:
                 continue
+
+            # ✅ MAX aggregation (worst case)
+            aggregated_value = max(numeric_values)
 
             signals.append(
                 {
                     "metric": ref_id.lower().replace("_", ""),
-                    "current": round(value, 2),
+                    "current": round(aggregated_value, 2),
                     "baseline": None,
                     "deviation_pct": None,
                     "severity": None,
