@@ -74,36 +74,38 @@ class ServerCollector:
     def _build_queries(self, environment: str, service: str) -> List[Dict]:
         return [
             {
+                # CPU usage as percentage (0–100)
                 "refId": "CPU",
                 "expr": (
-                    f'sum(rate(container_cpu_usage_seconds_total'
-                    f'{{container!="",pod!=""}}[5m])) * 100'
+                    'sum(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) '
+                    '/ sum(container_spec_cpu_quota{container!="",pod!=""} '
+                    '/ container_spec_cpu_period{container!="",pod!=""}) * 100'
                 ),
             },
             {
+                # Memory usage as percentage (0–100)
                 "refId": "MEM",
                 "expr": (
-                    f'sum(container_memory_working_set_bytes'
-                    f'{{container!="",pod!=""}})'
+                    'sum(container_memory_working_set_bytes{container!="",pod!=""}) '
+                    '/ sum(container_spec_memory_limit_bytes{container!="",pod!=""}) * 100'
                 ),
             },
             {
+                # JVM thread count
                 "refId": "THREADS",
-                "expr": (
-                    f'avg(jvm_threads_current)'
-                ),
+                "expr": 'avg(jvm_threads_current)',
             },
             {
+                # HTTP 5xx errors per second
                 "refId": "HTTP_5XX",
-                "expr": (
-                    f'sum(rate(http_responseCodes_serverError_total[5m]))'
-                ),
+                "expr": 'sum(rate(http_responseCodes_serverError_total[5m]))',
             },
             {
+                # P95 latency in ms
                 "refId": "HTTP_LAT_P95",
                 "expr": (
-                    f'histogram_quantile(0.95, '
-                    f'sum(rate(service_latency_bucket[5m])) by (le))'
+                    'histogram_quantile(0.95, '
+                    'sum(rate(service_latency_bucket[5m])) by (le))'
                 ),
             },
         ]
