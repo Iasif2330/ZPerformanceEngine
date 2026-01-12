@@ -22,6 +22,12 @@ pipeline {
 
     stages {
 
+        stage('Clean Workspace') {
+            steps {
+                deleteDir()
+            }
+        }
+
         /* ============================
          * STAGE 1 — Build Docker Image
          * ============================ */
