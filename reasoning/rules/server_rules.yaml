@@ -1,20 +1,20 @@
 server_rules:
   cpu:
-    minor_pct: 30
-    severe_pct: 60
+    minor_pct: 1
+    severe_pct: 1
 
   mem:
-    minor_pct: 25
-    severe_pct: 50
+    minor_pct: 1
+    severe_pct: 1
 
   threads:
-    minor_util_pct: 80
-    severe_util_pct: 95
+    minor_util_pct: 1
+    severe_util_pct: 1
 
   db_wait:
-    minor_wait_ms: 50
-    severe_wait_ms: 200
+    minor_wait_ms: 1
+    severe_wait_ms: 1
 
   lb_queue:
-    minor_queue_p95_ms: 50
-    severe_queue_p95_ms: 150
+    minor_queue_p95_ms: 1
+    severe_queue_p95_ms: 1
