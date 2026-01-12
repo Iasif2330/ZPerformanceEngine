@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    options {
+        skipDefaultCheckout()
+    }
+
     /* ============================
      * AUTO TRIGGER (SAFE – DOES NOT AFFECT ACTIVE CHOICES)
      * ============================ */
