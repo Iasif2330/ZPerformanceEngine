@@ -154,19 +154,27 @@ ${cliArgs}
          * ============================ */
         stage('Pre-flight Reasoning') {
             steps {
-                sh """
-                    ${DOCKER_CLI} run --rm \
-                      -v "${WORKSPACE}:${WORKDIR}" \
-                      -w ${WORKDIR} \
-                      -e BUILD_NUMBER=${env.BUILD_NUMBER} \
-                      -e ENVIRONMENT=${env.ENVIRONMENT} \
-                      -e LOAD_PROFILE=${env.LOAD_PROFILE} \
-                      -e TARGET_HOST=${env.TARGET_HOST} \
-                      -e REASONING_PHASE=preflight \
-                      -e PYTHONPATH=${WORKDIR} \
-                      ${IMAGE_NAME} \
-                      python3 -m reasoning.main
-                """
+                withCredentials([
+                    string(credentialsId: 'grafana-readonly-token', variable: 'GRAFANA_API_TOKEN')
+                ]) {
+                    sh """
+                        ${DOCKER_CLI} run --rm \
+                        -v "${WORKSPACE}:${WORKDIR}" \
+                        -w ${WORKDIR} \
+                        -e BUILD_NUMBER=${env.BUILD_NUMBER} \
+                        -e ENVIRONMENT=${env.ENVIRONMENT} \
+                        -e LOAD_PROFILE=${env.LOAD_PROFILE} \
+                        -e TARGET_HOST=${env.TARGET_HOST} \
+                        -e REASONING_PHASE=preflight \
+                        -e PYTHONPATH=${WORKDIR} \
+                        -e GRAFANA_URL=${env.GRAFANA_URL} \
+                        -e GRAFANA_DS_UID=${env.GRAFANA_DS_UID} \
+                        -e GRAFANA_API_TOKEN=${env.GRAFANA_API_TOKEN} \
+                        -e SERVICE_NAME=captain-api \
+                        ${IMAGE_NAME} \
+                        python3 -m reasoning.main
+                    """
+                }
             }
         }
 
@@ -214,18 +222,26 @@ ${cliArgs}
          * ============================ */
         stage('Post-run Reasoning') {
             steps {
-                sh """
-                    ${DOCKER_CLI} run --rm \
-                      -v "${WORKSPACE}:${WORKDIR}" \
-                      -w ${WORKDIR} \
-                      -e ENVIRONMENT=${env.ENVIRONMENT} \
-                      -e LOAD_PROFILE=${env.LOAD_PROFILE} \
-                      -e TARGET_HOST=${env.TARGET_HOST} \
-                      -e REASONING_PHASE=postrun \
-                      -e PYTHONPATH=${WORKDIR} \
-                      ${IMAGE_NAME} \
-                      python3 -m reasoning.main
-                """
+                withCredentials([
+                    string(credentialsId: 'grafana-readonly-token', variable: 'GRAFANA_API_TOKEN')
+                ]) {
+                    sh """
+                        ${DOCKER_CLI} run --rm \
+                        -v "${WORKSPACE}:${WORKDIR}" \
+                        -w ${WORKDIR} \
+                        -e ENVIRONMENT=${env.ENVIRONMENT} \
+                        -e LOAD_PROFILE=${env.LOAD_PROFILE} \
+                        -e TARGET_HOST=${env.TARGET_HOST} \
+                        -e REASONING_PHASE=postrun \
+                        -e PYTHONPATH=${WORKDIR} \
+                        -e GRAFANA_URL=${env.GRAFANA_URL} \
+                        -e GRAFANA_DS_UID=${env.GRAFANA_DS_UID} \
+                        -e GRAFANA_API_TOKEN=${env.GRAFANA_API_TOKEN} \
+                        -e SERVICE_NAME=captain-api \
+                        ${IMAGE_NAME} \
+                        python3 -m reasoning.main
+                    """
+                }
             }
         }
 
