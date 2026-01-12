@@ -183,8 +183,14 @@ class ServerCollector:
             if not numeric_values:
                 continue
 
-            # ✅ MAX aggregation (worst case)
-            aggregated_value = max(numeric_values)
+            # 🔥 Aggregation strategy per metric
+            metric_name = ref_id.lower().replace("_", "")
+
+            if metric_name in {"cpu", "mem", "threads", "httplatp95"}:
+                value = max(numeric_values)      # MAX over window
+            else:
+                value = sum(numeric_values) / len(numeric_values)  # AVG fallback
+
 
             signals.append(
                 {
