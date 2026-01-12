@@ -36,6 +36,15 @@ def load_yaml(path: str):
     with open(path) as f:
         return yaml.safe_load(f)
 
+def load_ts(path: str) -> int:
+    """
+    Load a unix timestamp (seconds) from a file.
+    """
+    if not os.path.exists(path):
+        fail(f"Missing timestamp file: {path}")
+
+    with open(path) as f:
+        return int(f.read().strip())
 
 def section(title: str):
     print(f"\n▶ {title}", flush=True)
