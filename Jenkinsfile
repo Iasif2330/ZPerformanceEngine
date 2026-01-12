@@ -1,6 +1,17 @@
 pipeline {
     agent any
 
+    /* ============================
+     * AUTO TRIGGER (SAFE – DOES NOT AFFECT ACTIVE CHOICES)
+     * ============================ */
+    triggers {
+        // Daily run at 02:00 (Jenkins controller timezone)
+        cron('0 2 * * *')
+
+        // For testing only (uncomment temporarily if needed)
+        // cron('* * * * *')
+    }
+
     environment {
         DOCKER_CLI = "/Applications/Docker.app/Contents/Resources/bin/docker"
         IMAGE_NAME = "zperformance-engine"
@@ -82,27 +93,26 @@ pipeline {
                         // 🔒 AUTO-TRIGGER DEFAULTS (NO UI SELECTION)
                         cliArgs += "-Dapis=login,allfeeds,crimedata,riskintelligence "
                     }
+
                     // ============================
-                // Resolve TARGET_HOST from environments.yaml (sandbox-safe)
-                // ============================
-                def host = sh(
-                    script: """
-                        awk '
-                            \$1 == "${envValue}:" { in_env=1; next }
-                            in_env && \$1 == "host:" { print \$2; exit }
-                            in_env && /^[^ ]/ { exit }
-                        ' config/environments.yaml
-                    """,
-                    returnStdout: true
-                ).trim()
+                    // Resolve TARGET_HOST from environments.yaml (sandbox-safe)
+                    // ============================
+                    def host = sh(
+                        script: """
+                            awk '
+                                \$1 == "${envValue}:" { in_env=1; next }
+                                in_env && \$1 == "host:" { print \$2; exit }
+                                in_env && /^[^ ]/ { exit }
+                            ' config/environments.yaml
+                        """,
+                        returnStdout: true
+                    ).trim()
 
-                if (!host) {
-                    error "Failed to resolve host for ENVIRONMENT '${envValue}' from config/environments.yaml"
-                }
+                    if (!host) {
+                        error "Failed to resolve host for ENVIRONMENT '${envValue}' from config/environments.yaml"
+                    }
 
-                // Export for later stages
-                env.TARGET_HOST = host
-
+                    env.TARGET_HOST = host
 
                     echo """
 FINAL CLI ARGS
