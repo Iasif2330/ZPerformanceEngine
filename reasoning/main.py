@@ -300,6 +300,17 @@ def main():
             start_ts=int(time()) - 900,
             end_ts=int(time())
         )
+        # 👇 ADD THIS
+        for s in server_metrics.get("signals", []):
+            kv(f"Server {s['metric']}", s["current"])
+
+        causal_chain.append({
+            "step": "Server metrics collected",
+            "evidence": {
+                s["metric"]: s["current"]
+                for s in server_metrics.get("signals", [])
+            }
+        })
 
         server_correlation = Correlator().correlate(
             server_metrics=server_metrics,
