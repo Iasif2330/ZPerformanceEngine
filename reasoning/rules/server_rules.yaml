@@ -3,7 +3,7 @@ server_rules:
     minor_pct: 30
     severe_pct: 60
 
-  memory:
+  mem:
     minor_pct: 25
     severe_pct: 50
 
@@ -11,10 +11,10 @@ server_rules:
     minor_util_pct: 80
     severe_util_pct: 95
 
-  database:
+  db_wait:
     minor_wait_ms: 50
     severe_wait_ms: 200
 
-  load_balancer:
+  lb_queue:
     minor_queue_p95_ms: 50
     severe_queue_p95_ms: 150
