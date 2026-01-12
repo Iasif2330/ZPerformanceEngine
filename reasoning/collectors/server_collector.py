@@ -73,7 +73,7 @@ class ServerCollector:
 
     def _build_queries(self, environment: str, service: str) -> List[Dict]:
         """
-        Build Grafana datasource queries.
+        Build PromQL queries using actual labels present in Prometheus.
         """
 
         return [
@@ -81,28 +81,32 @@ class ServerCollector:
                 "refId": "CPU",
                 "expr": (
                     f'avg(rate(container_cpu_usage_seconds_total'
-                    f'{{app="{service}",env="{environment}"}}[5m])) * 100'
+                    f'{{tags_datadoghq_com_service="{service}",'
+                    f'tags_datadoghq_com_env="{environment}"}}[5m])) * 100'
                 ),
             },
             {
                 "refId": "MEM",
                 "expr": (
                     f'avg(container_memory_working_set_bytes'
-                    f'{{app="{service}",env="{environment}"}})'
+                    f'{{tags_datadoghq_com_service="{service}",'
+                    f'tags_datadoghq_com_env="{environment}"}})'
                 ),
             },
             {
                 "refId": "THREADS",
                 "expr": (
                     f'avg(jvm_threads_live'
-                    f'{{app="{service}",env="{environment}"}})'
+                    f'{{tags_datadoghq_com_service="{service}",'
+                    f'tags_datadoghq_com_env="{environment}"}})'
                 ),
             },
             {
                 "refId": "DB_WAIT",
                 "expr": (
                     f'avg(db_connection_wait_seconds'
-                    f'{{app="{service}",env="{environment}"}}) * 1000'
+                    f'{{tags_datadoghq_com_service="{service}",'
+                    f'tags_datadoghq_com_env="{environment}"}}) * 1000'
                 ),
             },
             {
@@ -110,10 +114,12 @@ class ServerCollector:
                 "expr": (
                     f'histogram_quantile(0.95, '
                     f'rate(lb_request_queue_time_bucket'
-                    f'{{service="{service}",env="{environment}"}}[5m]))'
+                    f'{{tags_datadoghq_com_service="{service}",'
+                    f'tags_datadoghq_com_env="{environment}"}}[5m]))'
                 ),
             },
         ]
+
 
     def _execute_queries(
         self,
