@@ -294,26 +294,34 @@ def main():
     server_correlation = None
 
     try:
+        start_ts = load_ts("output/test_start_ts")
+        end_ts   = load_ts("output/test_end_ts")
+
+        kv("Server metrics window", f"{start_ts} → {end_ts}")
+
         server_metrics = ServerCollector().collect(
             environment=environment,
             service=os.environ.get("SERVICE_NAME", "captain-api"),
-            start_ts=int(time()) - 900,
-            end_ts=int(time())
+            start_ts=start_ts,
+            end_ts=end_ts
         )
 
-        # ✅ Always show server metrics
         if not server_metrics.get("signals"):
             kv("Server metrics", "No matching Prometheus series found")
-            server_metrics_evidence = "No matching Prometheus series found"
         else:
-            server_metrics_evidence = {}
             for s in server_metrics["signals"]:
                 evidence(s["metric"], s["current"])
-                server_metrics_evidence[s["metric"]] = s["current"]
 
         causal_chain.append({
             "step": "Server metrics collected",
-            "evidence": server_metrics_evidence
+            "evidence": {
+                "window_start_ts": start_ts,
+                "window_end_ts": end_ts,
+                **{
+                    s["metric"]: s["current"]
+                    for s in server_metrics.get("signals", [])
+                }
+            }
         })
 
         server_correlation = Correlator().correlate(

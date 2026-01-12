@@ -187,38 +187,49 @@ ${cliArgs}
         stage('Run JMeter') {
             steps {
                 sh """
+                    # -------------------------------
+                    # Capture test start time (epoch seconds)
+                    # -------------------------------
+                    date +%s > output/test_start_ts
+
                     ${DOCKER_CLI} run --rm \
-                      -v "${WORKSPACE}:${WORKDIR}" \
-                      -w ${WORKDIR} \
-                      ${IMAGE_NAME} \
-                      sh -c '
+                    -v "${WORKSPACE}:${WORKDIR}" \
+                    -w ${WORKDIR} \
+                    ${IMAGE_NAME} \
+                    sh -c '
                         rm -rf output/dashboard &&
                         jmeter -n \
-                          -t output/generated-test-plan.jmx \
-                          -l output/results.jtl \
-                          -Jjmeter.save.saveservice.output_format=csv \
-                          -Jjmeter.save.saveservice.assertion_results=none \
-                          -Jjmeter.save.saveservice.data_type=true \
-                          -Jjmeter.save.saveservice.label=true \
-                          -Jjmeter.save.saveservice.response_code=true \
-                          -Jjmeter.save.saveservice.response_message=true \
-                          -Jjmeter.save.saveservice.successful=true \
-                          -Jjmeter.save.saveservice.thread_name=true \
-                          -Jjmeter.save.saveservice.time=true \
-                          -Jjmeter.save.saveservice.latency=true \
-                          -Jjmeter.save.saveservice.connect_time=true \
-                          -Jjmeter.save.saveservice.bytes=true \
-                          -Jjmeter.save.saveservice.sent_bytes=true \
-                          -Jjmeter.save.saveservice.sample_count=true \
-                          -Jjmeter.save.saveservice.error_count=true \
-                          -Jjmeter.save.saveservice.hostname=true \
-                          -Jjmeter.save.saveservice.timestamp=true \
-                          -Jjmeter.save.saveservice.thread_counts=true \
-                          -e -o output/dashboard
-                      '
+                        -t output/generated-test-plan.jmx \
+                        -l output/results.jtl \
+                        -Jjmeter.save.saveservice.output_format=csv \
+                        -Jjmeter.save.saveservice.assertion_results=none \
+                        -Jjmeter.save.saveservice.data_type=true \
+                        -Jjmeter.save.saveservice.label=true \
+                        -Jjmeter.save.saveservice.response_code=true \
+                        -Jjmeter.save.saveservice.response_message=true \
+                        -Jjmeter.save.saveservice.successful=true \
+                        -Jjmeter.save.saveservice.thread_name=true \
+                        -Jjmeter.save.saveservice.time=true \
+                        -Jjmeter.save.saveservice.latency=true \
+                        -Jjmeter.save.saveservice.connect_time=true \
+                        -Jjmeter.save.saveservice.bytes=true \
+                        -Jjmeter.save.saveservice.sent_bytes=true \
+                        -Jjmeter.save.saveservice.sample_count=true \
+                        -Jjmeter.save.saveservice.error_count=true \
+                        -Jjmeter.save.saveservice.hostname=true \
+                        -Jjmeter.save.saveservice.timestamp=true \
+                        -Jjmeter.save.saveservice.thread_counts=true \
+                        -e -o output/dashboard
+                    '
+
+                    # -------------------------------
+                    # Capture test end time (epoch seconds)
+                    # -------------------------------
+                    date +%s > output/test_end_ts
                 """
             }
         }
+
 
         /* ============================
          * STAGE 7 — Post-run Reasoning

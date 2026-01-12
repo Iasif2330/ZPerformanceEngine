@@ -34,6 +34,21 @@ class ReasoningReport:
         lines.append(f"Load Profile     : {metadata.get('load_profile')}")
         lines.append(f"Run ID           : {metadata.get('run_id')}")
         lines.append(f"Generated At     : {timestamp} UTC\n")
+        # ===== Server Metrics Time Window =====
+        window = metadata.get("server_metrics_window")
+        if window:
+            start_ts = window.get("start_ts")
+            end_ts = window.get("end_ts")
+
+            if start_ts and end_ts:
+                start_dt = datetime.fromtimestamp(start_ts, timezone.utc)
+                end_dt = datetime.fromtimestamp(end_ts, timezone.utc)
+
+                lines.append(
+                    f"Server Metrics Window : "
+                    f"{start_dt.isoformat()} → {end_dt.isoformat()}"
+                )
+                lines.append("")
 
         # ================= Client Host =================
         lines.append("== Load Generator Health ==")
