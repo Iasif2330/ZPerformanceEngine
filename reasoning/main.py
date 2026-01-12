@@ -436,13 +436,19 @@ def _final_exit(
             "environment": environment,
             "load_profile": load_profile,
             "run_id": run_id,
-            "generated_at": datetime.now(timezone.utc).isoformat()
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+
+            # ✅ ADD THIS
+            "server_metrics_window": {
+                "start_ts": start_ts,
+                "end_ts": end_ts,
+            },
         },
-        client_host=client_host,
-        network=network,
+        client_host=host_validation,
+        network=network_validation,
         client_metrics=client_metrics,
-        baseline=baseline,
-        anomaly=anomaly,
+        baseline=baseline_metrics,
+        anomaly=anomaly_result,
         server_correlation=server_correlation,
         decision=decision_obj
     )
