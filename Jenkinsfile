@@ -6,7 +6,7 @@ pipeline {
      * ============================ */
     triggers {
         // 🔹 FIXED DAILY RUN (Jenkins controller timezone)
-        cron('0 2 * * *')   // runs daily at 02:00
+        cron('23 15 * * *')   // runs daily at 02:00
 
         // 🔹 FOR TESTING ONLY (uncomment temporarily)
         cron('* * * * *')   // runs every minute
