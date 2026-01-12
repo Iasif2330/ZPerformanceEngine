@@ -5,6 +5,20 @@ import requests
 from typing import Dict, List
 
 
+# ============================================================
+# Aggregation strategy per metric
+# ============================================================
+# max  → worst value observed during test window
+# avg  → average over test window
+AGGREGATION_STRATEGY = {
+    "cpu": "max",
+    "mem": "max",
+    "threads": "max",
+    "http5xx": "avg",
+    "httplatp95": "max",
+}
+
+
 class ServerCollector:
     """
     Collects server-side telemetry using Grafana HTTP API.
@@ -47,7 +61,7 @@ class ServerCollector:
         Collect server metrics for the anomaly time window.
 
         Metrics are aggregated over the full window [start_ts, end_ts]
-        using MAX aggregation (worst value during the test).
+        according to AGGREGATION_STRATEGY.
         """
 
         queries = self._build_queries(environment, service)
@@ -60,7 +74,7 @@ class ServerCollector:
 
         normalized = self._normalize_response(raw_response)
 
-        # ✅ Attach window metadata (safe, additive)
+        # ✅ Attach window metadata (purely additive)
         normalized["window"] = {
             "start_ts": start_ts,
             "end_ts": end_ts,
@@ -76,7 +90,7 @@ class ServerCollector:
     def _build_queries(self, environment: str, service: str) -> List[Dict]:
         return [
             {
-                # CPU usage percentage
+                # CPU usage percentage (0–100)
                 "refId": "CPU",
                 "expr": (
                     'sum(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) '
@@ -85,7 +99,7 @@ class ServerCollector:
                 ),
             },
             {
-                # Memory usage percentage
+                # Memory usage percentage (0–100)
                 "refId": "MEM",
                 "expr": (
                     'sum(container_memory_working_set_bytes{container!="",pod!=""}) '
@@ -103,7 +117,7 @@ class ServerCollector:
                 "expr": 'sum(rate(http_responseCodes_serverError_total[5m]))',
             },
             {
-                # P95 latency (ms)
+                # P95 latency in ms
                 "refId": "HTTP_LAT_P95",
                 "expr": (
                     'histogram_quantile(0.95, '
@@ -180,17 +194,21 @@ class ServerCollector:
                 continue
 
             metric_name = ref_id.lower().replace("_", "")
+            strategy = AGGREGATION_STRATEGY.get(metric_name, "avg")
 
-            # ✅ Aggregation strategy
-            if metric_name in {"cpu", "mem", "threads", "httplatp95"}:
-                value = max(numeric_values)          # MAX over window
+            # ✅ Apply aggregation
+            if strategy == "max":
+                aggregated_value = max(numeric_values)
+            elif strategy == "avg":
+                aggregated_value = sum(numeric_values) / len(numeric_values)
             else:
-                value = sum(numeric_values) / len(numeric_values)  # AVG fallback
+                aggregated_value = numeric_values[-1]
 
             signals.append(
                 {
                     "metric": metric_name,
-                    "current": round(value, 2),
+                    "current": round(aggregated_value, 2),
+                    "aggregation": strategy,  # 👈 semantic meaning
                     "baseline": None,
                     "deviation_pct": None,
                     "severity": None,
