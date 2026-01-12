@@ -72,53 +72,42 @@ class ServerCollector:
     # ------------------------------------------------------------
 
     def _build_queries(self, environment: str, service: str) -> List[Dict]:
-        """
-        Build PromQL queries using actual labels present in Prometheus.
-        """
-
         return [
             {
                 "refId": "CPU",
                 "expr": (
-                    f'avg(rate(container_cpu_usage_seconds_total'
-                    f'{{tags_datadoghq_com_service="{service}",'
-                    f'tags_datadoghq_com_env="{environment}"}}[5m])) * 100'
+                    f'sum(rate(container_cpu_usage_seconds_total'
+                    f'{{container!="",pod!=""}}[5m])) * 100'
                 ),
             },
             {
                 "refId": "MEM",
                 "expr": (
-                    f'avg(container_memory_working_set_bytes'
-                    f'{{tags_datadoghq_com_service="{service}",'
-                    f'tags_datadoghq_com_env="{environment}"}})'
+                    f'sum(container_memory_working_set_bytes'
+                    f'{{container!="",pod!=""}})'
                 ),
             },
             {
                 "refId": "THREADS",
                 "expr": (
-                    f'avg(jvm_threads_live'
-                    f'{{tags_datadoghq_com_service="{service}",'
-                    f'tags_datadoghq_com_env="{environment}"}})'
+                    f'avg(jvm_threads_current)'
                 ),
             },
             {
-                "refId": "DB_WAIT",
+                "refId": "HTTP_5XX",
                 "expr": (
-                    f'avg(db_connection_wait_seconds'
-                    f'{{tags_datadoghq_com_service="{service}",'
-                    f'tags_datadoghq_com_env="{environment}"}}) * 1000'
+                    f'sum(rate(http_responseCodes_serverError_total[5m]))'
                 ),
             },
             {
-                "refId": "LB_QUEUE",
+                "refId": "HTTP_LAT_P95",
                 "expr": (
                     f'histogram_quantile(0.95, '
-                    f'rate(lb_request_queue_time_bucket'
-                    f'{{tags_datadoghq_com_service="{service}",'
-                    f'tags_datadoghq_com_env="{environment}"}}[5m]))'
+                    f'sum(rate(service_latency_bucket[5m])) by (le))'
                 ),
             },
         ]
+
 
 
     def _execute_queries(
@@ -187,7 +176,7 @@ class ServerCollector:
 
             signals.append(
                 {
-                    "metric": ref_id.lower(),
+                    "metric": ref_id.lower().replace("_", ""),
                     "current": round(value, 2),
                     "baseline": None,
                     "deviation_pct": None,

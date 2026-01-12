@@ -8,13 +8,13 @@ server_rules:
     severe_pct: 50
 
   threads:
-    minor_util_pct: 80
-    severe_util_pct: 95
+    minor_pct: 30
+    severe_pct: 60
 
-  db_wait:
-    minor_wait_ms: 50
-    severe_wait_ms: 200
+  http5xx:
+    minor_wait_ms: 1
+    severe_wait_ms: 5
 
-  lb_queue:
-    minor_queue_p95_ms: 50
-    severe_queue_p95_ms: 150
+  httplatp95:
+    minor_wait_ms: 500
+    severe_wait_ms: 1500
