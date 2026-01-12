@@ -70,7 +70,6 @@ class ReasoningReport:
             status = network.get("status")
             lines.append(f"Status: {status}")
 
-            # Accept BOTH normalized telemetry and flattened evidence
             rtt = (
                 network.get("rtt", {}).get("avg_ms")
                 or network.get("rtt_avg_ms")
@@ -124,7 +123,7 @@ class ReasoningReport:
             for name, info in anomaly.get("anomalies", {}).items():
                 if "current" in info and "threshold_pct" in info:
                     lines.append(
-                        f"- {name}: {info['current']}% "
+                        f"- {name}: {info['current']} "
                         f"(threshold {info['threshold_pct']}%)"
                     )
                 else:
@@ -136,21 +135,28 @@ class ReasoningReport:
         lines.append("== Server Correlation ==")
 
         if server_correlation is None:
-            lines.append(
-                "Server-side correlation not evaluated for this run."
-            )
-        elif not server_correlation:
+            lines.append("Server-side correlation not evaluated for this run.")
+        elif not server_correlation.get("signals"):
             lines.append(
                 "Server metrics collected. "
                 "No automated server-side correlation signals identified."
             )
         else:
             lines.append(f"Status: {server_correlation.get('status')}")
+
             for sig in server_correlation.get("signals", []):
-                lines.append(
-                    f"- {sig['metric']}: {sig['severity']} "
-                    f"(current {sig['current']}, baseline {sig['baseline']})"
-                )
+                metric = sig.get("metric")
+                severity = sig.get("severity")
+                current = sig.get("current")
+                baseline_val = sig.get("baseline")
+
+                # 🔒 Baseline-safe rendering
+                if baseline_val is not None:
+                    detail = f"(current {current}, baseline {baseline_val})"
+                else:
+                    detail = f"(current {current})"
+
+                lines.append(f"- {metric}: {severity} {detail}")
 
         lines.append("")
 
