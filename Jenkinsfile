@@ -173,7 +173,6 @@ ${cliArgs}
                     sh """
                         ${DOCKER_CLI} run --rm \
                         -v "${WORKSPACE}:${WORKDIR}" \
-                        -v "${WORKSPACE}/reasoning/baselines/snapshots:/workspace/reasoning/baselines/snapshots" \
                         -w ${WORKDIR} \
                         -e BUILD_NUMBER=${env.BUILD_NUMBER} \
                         -e ENVIRONMENT=${env.ENVIRONMENT} \
@@ -242,7 +241,6 @@ ${cliArgs}
                     sh """
                         ${DOCKER_CLI} run --rm \
                         -v "${WORKSPACE}:${WORKDIR}" \
-                        -v "${WORKSPACE}/reasoning/baselines/snapshots:/workspace/reasoning/baselines/snapshots" \
                         -w ${WORKDIR} \
                         -e ENVIRONMENT=${env.ENVIRONMENT} \
                         -e LOAD_PROFILE=${env.LOAD_PROFILE} \
