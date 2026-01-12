@@ -3,7 +3,6 @@
 import os
 import requests
 from typing import Dict, List
-from datetime import datetime
 
 
 class ServerCollector:
@@ -14,25 +13,21 @@ class ServerCollector:
 
     def __init__(self):
         # ============================================================
-        # 🔴 PLACEHOLDER 1: Grafana base URL
-        # Example: https://grafana.company.com
+        # Grafana base URL (from environment)
         # ============================================================
         self.grafana_url = os.environ.get("GRAFANA_URL")
         if not self.grafana_url:
             raise ValueError("GRAFANA_URL environment variable not set")
 
         # ============================================================
-        # 🔴 PLACEHOLDER 2: Grafana API token (READ ONLY)
-        # Create this from Grafana UI → API Keys → Viewer role
+        # Grafana API token (READ ONLY, Viewer role)
         # ============================================================
         self.api_token = os.environ.get("GRAFANA_API_TOKEN")
         if not self.api_token:
             raise ValueError("GRAFANA_API_TOKEN environment variable not set")
 
         # ============================================================
-        # 🔴 PLACEHOLDER 3: Grafana datasource UID
-        # This is the Prometheus (or other) datasource UID in Grafana
-        # Example: "PBFA97CFB590B2093"
+        # Grafana Prometheus datasource UID
         # ============================================================
         self.datasource_uid = os.environ.get("GRAFANA_DS_UID")
         if not self.datasource_uid:
@@ -40,7 +35,7 @@ class ServerCollector:
 
         self.headers = {
             "Authorization": f"Bearer {self.api_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
     # ------------------------------------------------------------
@@ -51,15 +46,15 @@ class ServerCollector:
         environment: str,
         service: str,
         start_ts: int,
-        end_ts: int
+        end_ts: int,
     ) -> Dict:
         """
         Collect server metrics for the anomaly time window.
 
         :param environment: qa / stage / prod
         :param service: service name / app label used in metrics
-        :param start_ts: epoch seconds (start of anomaly window)
-        :param end_ts: epoch seconds (end of anomaly window)
+        :param start_ts: epoch seconds
+        :param end_ts: epoch seconds
         """
 
         queries = self._build_queries(environment, service)
@@ -67,7 +62,7 @@ class ServerCollector:
         response = self._execute_queries(
             queries=queries,
             start_ts=start_ts,
-            end_ts=end_ts
+            end_ts=end_ts,
         )
 
         return self._normalize_response(response)
@@ -79,47 +74,52 @@ class ServerCollector:
     def _build_queries(self, environment: str, service: str) -> List[Dict]:
         """
         Build Grafana datasource queries.
-        🔴 Replace PromQL expressions according to your metrics.
         """
 
         return [
             {
                 "refId": "CPU",
-                "expr": f"""
-                    avg(rate(container_cpu_usage_seconds_total{{app="{service}",env="{environment}"}}[5m])) * 100
-                """,
+                "expr": (
+                    f'avg(rate(container_cpu_usage_seconds_total'
+                    f'{{app="{service}",env="{environment}"}}[5m])) * 100'
+                ),
             },
             {
                 "refId": "MEM",
-                "expr": f"""
-                    avg(container_memory_working_set_bytes{{app="{service}",env="{environment}"}})
-                """,
+                "expr": (
+                    f'avg(container_memory_working_set_bytes'
+                    f'{{app="{service}",env="{environment}"}})'
+                ),
             },
             {
                 "refId": "THREADS",
-                "expr": f"""
-                    avg(jvm_threads_live{{app="{service}",env="{environment}"}})
-                """,
+                "expr": (
+                    f'avg(jvm_threads_live'
+                    f'{{app="{service}",env="{environment}"}})'
+                ),
             },
             {
                 "refId": "DB_WAIT",
-                "expr": f"""
-                    avg(db_connection_wait_seconds{{app="{service}",env="{environment}"}}) * 1000
-                """,
+                "expr": (
+                    f'avg(db_connection_wait_seconds'
+                    f'{{app="{service}",env="{environment}"}}) * 1000'
+                ),
             },
             {
                 "refId": "LB_QUEUE",
-                "expr": f"""
-                    histogram_quantile(0.95, rate(lb_request_queue_time_bucket{{service="{service}",env="{environment}"}}[5m]))
-                """,
-            }
+                "expr": (
+                    f'histogram_quantile(0.95, '
+                    f'rate(lb_request_queue_time_bucket'
+                    f'{{service="{service}",env="{environment}"}}[5m]))'
+                ),
+            },
         ]
 
     def _execute_queries(
         self,
         queries: List[Dict],
         start_ts: int,
-        end_ts: int
+        end_ts: int,
     ) -> Dict:
         """
         Execute Grafana datasource queries.
@@ -131,17 +131,19 @@ class ServerCollector:
                     "refId": q["refId"],
                     "datasource": {"uid": self.datasource_uid},
                     "expr": q["expr"],
-                    "format": "time_series"
+                    "format": "time_series",
                 }
                 for q in queries
             ],
             "from": start_ts * 1000,
-            "to": end_ts * 1000
+            "to": end_ts * 1000,
         }
 
         url = f"{self.grafana_url}/api/ds/query"
 
-        resp = requests.post(url, headers=self.headers, json=payload, timeout=30)
+        resp = requests.post(
+            url, headers=self.headers, json=payload, timeout=30
+        )
         resp.raise_for_status()
         return resp.json()
 
@@ -157,24 +159,24 @@ class ServerCollector:
             if not frames:
                 continue
 
-            # Take last datapoint in window
             values = frames[0]["data"]["values"]
-            timestamps, metrics = values[0], values[1]
+            metrics = values[1]
             if not metrics:
                 continue
 
             value = metrics[-1]
 
-            signals.append({
-                "metric": ref_id.lower(),
-                "current": round(value, 2),
-                # baseline will be filled later by correlator
-                "baseline": None,
-                "deviation_pct": None,
-                "severity": None
-            })
+            signals.append(
+                {
+                    "metric": ref_id.lower(),
+                    "current": round(value, 2),
+                    "baseline": None,
+                    "deviation_pct": None,
+                    "severity": None,
+                }
+            )
 
         return {
             "status": "AVAILABLE",
-            "signals": signals
+            "signals": signals,
         }
