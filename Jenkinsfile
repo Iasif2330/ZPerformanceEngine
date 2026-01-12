@@ -28,7 +28,7 @@ pipeline {
 
         stage('Clean Workspace') {
             steps {
-                cleanWs()
+                cleanWs(deleteDirs: true, patterns: [[pattern: 'reasoning/baselines/snapshots/**', type: 'EXCLUDE']])
                 checkout scm
             }
         }
