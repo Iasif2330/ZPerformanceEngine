@@ -1,6 +1,58 @@
 pipeline {
     agent any
 
+    /* ============================
+     * AUTO TRIGGER (SCHEDULING)
+     * ============================ */
+    triggers {
+        // 🔹 FIXED DAILY RUN (Jenkins controller timezone)
+        cron('0 2 * * *')   // runs daily at 02:00
+
+        // 🔹 FOR TESTING ONLY (uncomment temporarily)
+        // cron('* * * * *')   // runs every minute
+    }
+
+    /* ============================
+     * PARAMETERS (REQUIRED)
+     * ============================ */
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['autoprod', 'staging', 'dev'],
+            description: 'Target environment'
+        )
+
+        choice(
+            name: 'LOAD_PROFILE',
+            choices: ['baseline-minimal', 'baseline', 'stress'],
+            description: 'Load profile'
+        )
+
+        string(
+            name: 'DURATION',
+            defaultValue: '',
+            description: 'Duration in seconds (empty or 0 = profile default)'
+        )
+
+        string(
+            name: 'SELECTED_APIS',
+            defaultValue: '',
+            description: 'Comma-separated APIs (empty = all)'
+        )
+
+        booleanParam(
+            name: 'LOOPLOGIN',
+            defaultValue: true,
+            description: 'Loop login requests'
+        )
+
+        booleanParam(
+            name: 'DEBUG',
+            defaultValue: false,
+            description: 'Enable debug logging'
+        )
+    }
+
     environment {
         DOCKER_CLI = "/Applications/Docker.app/Contents/Resources/bin/docker"
         IMAGE_NAME = "zperformance-engine"
@@ -40,8 +92,8 @@ pipeline {
                 script {
                     def envValue     = params.ENVIRONMENT ?: "autoprod"
                     def profileValue = params.LOAD_PROFILE ?: "baseline-minimal"
-                    def loopVal      = params.LOOPLOGIN?.toString()?.toLowerCase() ?: "true"
-                    def debugVal     = params.DEBUG?.toString()?.toLowerCase() ?: "false"
+                    def loopVal      = params.LOOPLOGIN.toString().toLowerCase()
+                    def debugVal     = params.DEBUG.toString().toLowerCase()
 
                     def durRaw = params.DURATION ?: ""
                     def durationVal =
@@ -77,36 +129,35 @@ pipeline {
                     } else if (!nonLoginApis.isEmpty()) {
                         cliArgs += "-Dapis=${nonLoginApis.join(',')} "
                     }
+
                     // ============================
-                // Resolve TARGET_HOST from environments.yaml (sandbox-safe)
-                // ============================
-                def host = sh(
-                    script: """
-                        awk '
-                            \$1 == "${envValue}:" { in_env=1; next }
-                            in_env && \$1 == "host:" { print \$2; exit }
-                            in_env && /^[^ ]/ { exit }
-                        ' config/environments.yaml
-                    """,
-                    returnStdout: true
-                ).trim()
+                    // Resolve TARGET_HOST from environments.yaml
+                    // ============================
+                    def host = sh(
+                        script: """
+                            awk '
+                                \$1 == "${envValue}:" { in_env=1; next }
+                                in_env && \$1 == "host:" { print \$2; exit }
+                                in_env && /^[^ ]/ { exit }
+                            ' config/environments.yaml
+                        """,
+                        returnStdout: true
+                    ).trim()
 
-                if (!host) {
-                    error "Failed to resolve host for ENVIRONMENT '${envValue}' from config/environments.yaml"
-                }
+                    if (!host) {
+                        error "Failed to resolve host for ENVIRONMENT '${envValue}' from config/environments.yaml"
+                    }
 
-                // Export for later stages
-                env.TARGET_HOST = host
-
+                    env.TARGET_HOST  = host
+                    env.CLI_ARGS     = cliArgs
+                    env.ENVIRONMENT  = envValue
+                    env.LOAD_PROFILE = profileValue
 
                     echo """
 FINAL CLI ARGS
 --------------
 ${cliArgs}
 """
-                    env.CLI_ARGS = cliArgs
-                    env.ENVIRONMENT = envValue
-                    env.LOAD_PROFILE = profileValue
                 }
             }
         }
@@ -170,24 +221,6 @@ ${cliArgs}
                         jmeter -n \
                           -t output/generated-test-plan.jmx \
                           -l output/results.jtl \
-                          -Jjmeter.save.saveservice.output_format=csv \
-                          -Jjmeter.save.saveservice.assertion_results=none \
-                          -Jjmeter.save.saveservice.data_type=true \
-                          -Jjmeter.save.saveservice.label=true \
-                          -Jjmeter.save.saveservice.response_code=true \
-                          -Jjmeter.save.saveservice.response_message=true \
-                          -Jjmeter.save.saveservice.successful=true \
-                          -Jjmeter.save.saveservice.thread_name=true \
-                          -Jjmeter.save.saveservice.time=true \
-                          -Jjmeter.save.saveservice.latency=true \
-                          -Jjmeter.save.saveservice.connect_time=true \
-                          -Jjmeter.save.saveservice.bytes=true \
-                          -Jjmeter.save.saveservice.sent_bytes=true \
-                          -Jjmeter.save.saveservice.sample_count=true \
-                          -Jjmeter.save.saveservice.error_count=true \
-                          -Jjmeter.save.saveservice.hostname=true \
-                          -Jjmeter.save.saveservice.timestamp=true \
-                          -Jjmeter.save.saveservice.thread_counts=true \
                           -e -o output/dashboard
                       '
                 """
@@ -249,27 +282,6 @@ ${cliArgs}
 
                 archiveArtifacts artifacts: 'output/performance-reports.zip', fingerprint: true
                 archiveArtifacts artifacts: 'output/results.jtl', fingerprint: true
-
-                echo """
-================= REPORT ACCESS =================
-
-📦 DOWNLOAD:
-   Artifacts → performance-reports.zip
-
-📊 JMeter Dashboard:
-   dashboard/index.html
-
-📄 Executive Summary:
-   executive/index.html
-
-🧠 Performance Reasoning:
-   reasoning/
-
-⚠️ IMPORTANT:
-   Do NOT open reports inside Jenkins UI.
-
-=================================================
-"""
             }
         }
     }
