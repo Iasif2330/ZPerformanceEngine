@@ -82,19 +82,19 @@ class Correlator:
         Apply server rules to determine severity.
         """
 
-        # Absolute metrics (DB wait, LB queue)
-        if "minor_wait_ms" in rule:
-            if current >= rule["severe_wait_ms"]:
+        # ✅ Absolute thresholds (preferred for servers)
+        if "severe_abs" in rule:
+            if current >= rule["severe_abs"]:
                 return "SEVERE"
-            if current >= rule["minor_wait_ms"]:
+            if current >= rule["minor_abs"]:
                 return "MINOR"
             return None
 
-        # Percentage-based metrics (CPU, memory)
+        # Percentage-based (only if baseline exists)
         if deviation_pct is not None:
-            if deviation_pct >= rule["severe_pct"]:
+            if deviation_pct >= rule.get("severe_pct", 9999):
                 return "SEVERE"
-            if deviation_pct >= rule["minor_pct"]:
+            if deviation_pct >= rule.get("minor_pct", 9999):
                 return "MINOR"
 
         return None

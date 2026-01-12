@@ -1,20 +1,20 @@
 server_rules:
   cpu:
-    minor_pct: 30
-    severe_pct: 60
+    minor_abs: 70
+    severe_abs: 90
 
   mem:
-    minor_pct: 25
-    severe_pct: 50
+    minor_abs: 70
+    severe_abs: 90
 
   threads:
-    minor_pct: 30
-    severe_pct: 60
+    minor_abs: 40
+    severe_abs: 80
 
   http5xx:
-    minor_wait_ms: 1
-    severe_wait_ms: 5
+    minor_abs: 1
+    severe_abs: 5
 
   httplatp95:
-    minor_wait_ms: 500
-    severe_wait_ms: 1500
+    minor_abs: 50
+    severe_abs: 100
