@@ -153,10 +153,7 @@ class ServerCollector:
     def _normalize_response(self, raw: Dict) -> Dict:
         """
         Normalize Prometheus responses into server signals.
-
-        IMPORTANT:
-        - We take MAX value over the entire time window
-        - This represents the WORST observed server condition
+        Aggregates values over the full time window.
         """
 
         signals = []
@@ -172,7 +169,6 @@ class ServerCollector:
             if not values:
                 continue
 
-            # Extract numeric values across the time window
             numeric_values = []
             for _, v in values:
                 try:
@@ -183,19 +179,18 @@ class ServerCollector:
             if not numeric_values:
                 continue
 
-            # 🔥 Aggregation strategy per metric
             metric_name = ref_id.lower().replace("_", "")
 
+            # ✅ Aggregation strategy
             if metric_name in {"cpu", "mem", "threads", "httplatp95"}:
-                value = max(numeric_values)      # MAX over window
+                value = max(numeric_values)          # MAX over window
             else:
                 value = sum(numeric_values) / len(numeric_values)  # AVG fallback
 
-
             signals.append(
                 {
-                    "metric": ref_id.lower().replace("_", ""),
-                    "current": round(aggregated_value, 2),
+                    "metric": metric_name,
+                    "current": round(value, 2),
                     "baseline": None,
                     "deviation_pct": None,
                     "severity": None,
