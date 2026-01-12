@@ -301,9 +301,10 @@ def main():
             end_ts=int(time())
         )
 
-        server_correlation = Correlator(server_rules).correlate(
+        server_correlation = Correlator().correlate(
             server_metrics=server_metrics,
-            client_anomaly=anomaly_result
+            server_baseline=None,
+            rules=server_rules
         )
 
         kv("Server correlation status", server_correlation.get("status"))
