@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    options {
-        skipDefaultCheckout()
-    }
-
     /* ============================
      * AUTO TRIGGER (SAFE – DOES NOT AFFECT ACTIVE CHOICES)
      * ============================ */
@@ -25,13 +21,6 @@ pipeline {
     }
 
     stages {
-
-        stage('Clean Workspace') {
-            steps {
-                cleanWs(deleteDirs: true, patterns: [[pattern: 'reasoning/baselines/snapshots/**', type: 'EXCLUDE']])
-                checkout scm
-            }
-        }
 
         /* ============================
          * STAGE 1 — Build Docker Image
