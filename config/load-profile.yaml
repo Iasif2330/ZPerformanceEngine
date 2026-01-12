@@ -5,60 +5,32 @@ universal:
 
 profiles:
 
-  - name: 1-user-starts-immediately-runs-once
+  - name: baseline-minimal
     threads: 1
     rampup: 1
     apiLoopCount: 1
 
-  - name: 10-users-start-immediately-run-once
+  - name: baseline-10x
     threads: 10
     rampup: 1
     apiLoopCount: 1
 
-  - name: 10-users-start-immediately-run-10-times
+  - name: baseline-10x-extended
     threads: 10
     rampup: 1
     apiLoopCount: 10
 
-  - name: 20-users-start-immediately-run-once
+  - name: baseline-20x
     threads: 20
     rampup: 1
     apiLoopCount: 1
 
-  - name: 20-users-start-immediately-run-10-times
+  - name: baseline-20x-extended
     threads: 20
     rampup: 1
     apiLoopCount: 10
 
-  - name: 50-users-start-immediately-run-5-times
+  - name: baseline-50x-extended
     threads: 50
     rampup: 1
-    apiLoopCount: 5
-
-
-  # -------- Gradual ramp-up (5 seconds) --------
-
-  - name: 10-users-start-over-5s-run-once
-    threads: 10
-    rampup: 5
-    apiLoopCount: 1
-
-  - name: 10-users-start-over-5s-run-10-times
-    threads: 10
-    rampup: 5
-    apiLoopCount: 10
-
-  - name: 20-users-start-over-5s-run-once
-    threads: 20
-    rampup: 5
-    apiLoopCount: 1
-
-  - name: 20-users-start-over-5s-run-10-times
-    threads: 20
-    rampup: 5
-    apiLoopCount: 10
-
-  - name: 50-users-start-over-5s-run-5-times
-    threads: 50
-    rampup: 5
     apiLoopCount: 5
