@@ -91,7 +91,7 @@ pipeline {
                     }
                     else {
                         // 🔒 AUTO-TRIGGER DEFAULTS (NO UI SELECTION)
-                        cliArgs += "-Dapis=login,allfeeds,crimedata,riskintelligence "
+                        cliArgs += "-Dapis=login,allfeeds,crimedata,riskintelligence,crimeevents,feedpreview "
                     }
 
                     // ============================
