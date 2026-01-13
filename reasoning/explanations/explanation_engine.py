@@ -134,6 +134,9 @@ class ExplanationEngine:
             if self._matches(rule["when"], facts):
                 explanation.extend(rule["explain"])
 
+                # ERROR-DOMINANT rules should short-circuit
+                if facts.get("has_errors"):
+                    break
         # Fallback (should rarely happen)
         if not explanation:
             explanation.append(
