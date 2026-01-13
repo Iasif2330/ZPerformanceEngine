@@ -8,7 +8,7 @@ from typing import Dict
 class NetworkCollector:
     """
     Collects client → server network telemetry using TCP probes.
-    This is CI-safe, Docker-safe, and does NOT rely on ICMP.
+    CI-safe, Docker-safe, no ICMP dependency.
     """
 
     def __init__(self, target_host: str, port: int = 443):
@@ -21,23 +21,14 @@ class NetworkCollector:
 
         return {
             "rtt": rtt,
-            "packet_loss": packet_loss,
-            "retransmissions": {
-                "pct": None  # Phase 2 (OS / APM level)
-            },
-            "load_balancer": {
-                "queue_time_p95_ms": None  # Phase 2 (APM / LB APIs)
-            }
+            "packet_loss": packet_loss
         }
 
     # -------------------------------------------------
-    # Internal collectors (TCP-based)
+    # Internal collectors
     # -------------------------------------------------
 
     def _collect_rtt(self, attempts: int, timeout: int) -> Dict:
-        """
-        Measure TCP connect latency as RTT proxy.
-        """
         times_ms = []
 
         for _ in range(attempts):
@@ -64,9 +55,6 @@ class NetworkCollector:
         }
 
     def _collect_packet_loss(self, attempts: int, timeout: int) -> Dict:
-        """
-        Packet loss derived from failed TCP connection attempts.
-        """
         failures = 0
 
         for _ in range(attempts):

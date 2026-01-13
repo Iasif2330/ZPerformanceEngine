@@ -93,6 +93,15 @@ CLIENT_HOST_EFFECTS = {
     ),
 }
 
+NETWORK_EFFECTS = {
+    "network.rtt.avg_ms":
+        "High network latency can slow request delivery and distort response times.",
+    "network.rtt.p95_ms":
+        "Intermittent network delays can cause request stalls and timeouts.",
+    "network.packet_loss.pct":
+        "Packet loss can cause retries and dropped requests, invalidating test results.",
+}
+
 
 def print_client_host_metrics(host_telemetry, host_validation, rules):
     print("\n  Metrics vs Rules:", flush=True)
@@ -268,14 +277,67 @@ def main():
             net_telemetry = NetworkCollector(target_host).collect()
             network_validation = NetworkValidator(network_rules, environment).validate(net_telemetry)
 
-            kv("Status", network_validation["status"])
-            evidence("RTT avg (ms)", net_telemetry.get("rtt", {}).get("avg_ms"))
-            evidence("Packet loss %", net_telemetry.get("packet_loss", {}).get("pct"))
+            kv("Healthy", network_validation["healthy"])
+            kv("Fail Fast", network_validation["fail_fast"])
+
+            print("\n  Metrics vs Rules:", flush=True)
+
+            violated = {v["metric"] for v in network_validation["violations"]}
+
+            # RTT avg
+            if net_telemetry["rtt"]["avg_ms"] is not None:
+                metric = "network.rtt.avg_ms"
+                value = net_telemetry["rtt"]["avg_ms"]
+                limit = network_validation["rtt_limits"]["avg_ms_max"]
+                symbol = "✖" if metric in violated else "✔"
+
+                print(f"     {symbol} {metric} = {value} (allowed < {limit})", flush=True)
+                print(f"        ↳ Effect: {NETWORK_EFFECTS[metric]}", flush=True)
+
+            # RTT p95
+            if net_telemetry["rtt"]["p95_ms"] is not None:
+                metric = "network.rtt.p95_ms"
+                value = net_telemetry["rtt"]["p95_ms"]
+                limit = network_validation["rtt_limits"]["p95_ms_max"]
+                symbol = "✖" if metric in violated else "✔"
+
+                print(f"     {symbol} {metric} = {value} (allowed < {limit})", flush=True)
+                print(f"        ↳ Effect: {NETWORK_EFFECTS[metric]}", flush=True)
+
+            # Packet loss
+            if net_telemetry["packet_loss"]["pct"] is not None:
+                metric = "network.packet_loss.pct"
+                value = net_telemetry["packet_loss"]["pct"]
+                limit = network_rules["network"]["packet_loss"]["pct_max"]
+                symbol = "✖" if metric in violated else "✔"
+
+                print(f"     {symbol} {metric} = {value} (allowed < {limit})", flush=True)
+                print(f"        ↳ Effect: {NETWORK_EFFECTS[metric]}", flush=True)
 
         causal_chain.append({
             "step": "Network health validated",
             "evidence": network_validation
         })
+
+        if network_validation.get("fail_fast"):
+            _final_exit(
+                decision="INVALID",
+                confidence="HIGH",
+                reasons=["Network failed pre-flight health checks"],
+                causal_chain=causal_chain + [{
+                    "step": "Network pre-flight fail-fast",
+                    "evidence": network_validation
+                }],
+                environment=environment,
+                load_profile=load_profile,
+                run_id=run_id,
+                client_host=host_validation,
+                network=network_validation,
+                client_metrics=None,
+                baseline=None,
+                anomaly=None,
+                server_correlation=None
+            )
 
         os.makedirs("output/reasoning", exist_ok=True)
         with open(snapshot_path, "w") as f:

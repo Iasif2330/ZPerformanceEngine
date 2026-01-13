@@ -1,12 +1,17 @@
 # reasoning/validators/network_validator.py
 
-from typing import Dict
+from typing import Dict, List
 
 
 class NetworkValidator:
     """
-    Validates client → server network path health using
-    independent network telemetry and environment-aware rules.
+    Validates client → server network path health.
+
+    Responsibilities:
+    - Apply environment-aware, deterministic invariants
+    - Emit structured violations
+    - Signal fail-fast
+    - NOT interpret performance impact
     """
 
     def __init__(self, rules: Dict, environment: str):
@@ -29,8 +34,10 @@ class NetworkValidator:
             },
         }
 
+        self.fail_fast = rules.get("behavior", {}).get("fail_fast", False)
+
     def validate(self, telemetry: Dict) -> Dict:
-        issues = []
+        violations: List[Dict] = []
 
         # Select RTT thresholds for environment
         rtt_limits = self.rtt_thresholds.get(
@@ -38,55 +45,59 @@ class NetworkValidator:
             self.rtt_thresholds["qa"],  # safe default
         )
 
-        # ---- RTT checks ----
+        # -------------------------------------------------
+        # RTT checks (TCP connect latency)
+        # -------------------------------------------------
         rtt = telemetry.get("rtt", {})
 
         if rtt.get("avg_ms") is not None:
-            if rtt["avg_ms"] >= rtt_limits["avg_ms_max"]:
-                issues.append(
-                    f"RTT avg {rtt['avg_ms']} ms exceeds "
-                    f"{rtt_limits['avg_ms_max']} ms"
-                )
+            self._check_max(
+                violations,
+                "network.rtt.avg_ms",
+                rtt["avg_ms"],
+                rtt_limits["avg_ms_max"]
+            )
 
         if rtt.get("p95_ms") is not None:
-            if rtt["p95_ms"] >= rtt_limits["p95_ms_max"]:
-                issues.append(
-                    f"RTT p95 {rtt['p95_ms']} ms exceeds "
-                    f"{rtt_limits['p95_ms_max']} ms"
-                )
+            self._check_max(
+                violations,
+                "network.rtt.p95_ms",
+                rtt["p95_ms"],
+                rtt_limits["p95_ms_max"]
+            )
 
-        # ---- Packet loss ----
+        # -------------------------------------------------
+        # Packet loss (TCP connect failures)
+        # -------------------------------------------------
         loss = telemetry.get("packet_loss", {})
         if loss.get("pct") is not None:
-            if loss["pct"] >= self.rules["packet_loss"]["max_pct"]:
-                issues.append(
-                    f"Packet loss {loss['pct']}% exceeds "
-                    f"{self.rules['packet_loss']['max_pct']}%"
-                )
-
-        # ---- Retransmissions ----
-        retrans = telemetry.get("retransmissions", {})
-        if retrans.get("pct") is not None:
-            if retrans["pct"] >= self.rules["retransmissions"]["max_pct"]:
-                issues.append(
-                    f"TCP retransmissions {retrans['pct']}% exceeds "
-                    f"{self.rules['retransmissions']['max_pct']}%"
-                )
-
-        # ---- Load balancer queue ----
-        lb = telemetry.get("load_balancer", {})
-        if lb.get("queue_time_p95_ms") is not None:
-            if lb["queue_time_p95_ms"] >= self.rules["load_balancer"]["queue_time_p95_ms_max"]:
-                issues.append(
-                    f"LB queue time p95 {lb['queue_time_p95_ms']} ms exceeds "
-                    f"{self.rules['load_balancer']['queue_time_p95_ms_max']} ms"
-                )
-
-        status = "NETWORK_OK" if not issues else "NETWORK_UNSTABLE"
+            self._check_max(
+                violations,
+                "network.packet_loss.pct",
+                loss["pct"],
+                self.rules["packet_loss"]["pct_max"]
+            )
 
         return {
-            "status": status,
-            "issues": issues,
+            "component": "network",
             "environment": self.environment,
             "rtt_limits": rtt_limits,
+            "violations": violations,
+            "healthy": len(violations) == 0,
+            "fail_fast": self.fail_fast and len(violations) > 0
         }
+
+    @staticmethod
+    def _check_max(
+        violations: List[Dict],
+        metric: str,
+        observed: float,
+        max_allowed: float
+    ):
+        if observed >= max_allowed:
+            violations.append({
+                "metric": metric,
+                "observed": observed,
+                "threshold": f"< {max_allowed}",
+                "rule": "max"
+            })
