@@ -125,11 +125,11 @@ def main():
         "error_rate_pct": client_metrics_rules_yaml["errors"]["max_error_rate_pct"]
     }
 
-client_host = None
-network_validation = None
-network_telemetry = None
+    client_host = None
+    network_validation = None
+    network_telemetry = None
 
-if reasoning_phase == "preflight":
+    if reasoning_phase == "preflight":
     # ============================================================
     # 3. CLIENT HOST HEALTH (PRE-FLIGHT ONLY)
     # ============================================================
