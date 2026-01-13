@@ -20,6 +20,8 @@ from reasoning.correlators.correlator import Correlator
 from reasoning.decisions.decision_engine import DecisionEngine
 from reasoning.reports.reasoning_report import ReasoningReport
 
+from reasoning.explanations.explanation_engine import (ExplanationEngine, EXPLANATION_RULES)
+
 
 # ---------------- Helpers ----------------
 def fail(msg: str):
@@ -436,14 +438,14 @@ def main():
                     f"(allowed ≤ {details['threshold_pct']}%)",
                     flush=True
                 )
-    else:
-        print(
-            f"     ✖ {details['metric']}: "
-            f"current={details['current']} "
-            f"(baseline={details['baseline']}, "
-            f"threshold={details['threshold_pct']}%)",
-            flush=True
-        )
+            else:
+                print(
+                    f"     ✖ {details['metric']}: "
+                    f"current={details['current']} "
+                    f"(baseline={details['baseline']}, "
+                    f"threshold={details['threshold_pct']}%)",
+                    flush=True
+                )
 
     baseline_store.save_run(run_id, client_metrics)
 
@@ -472,6 +474,18 @@ def main():
 
     server_correlation = Correlator().correlate(server_metrics, None, server_rules)
     kv("Server correlation status", server_correlation["status"])
+    section("Explanation")
+    explanations = ExplanationEngine(EXPLANATION_RULES).explain(
+        anomaly_result,
+        server_correlation
+    )
+    for line in explanations:
+        print(f"  • {line}", flush=True)
+    causal_chain.append({
+        "step": "Explanation derived",
+        "evidence": explanations
+    })
+    
     states = server_correlation.get("states", {})
     print("\n  Server States:", flush=True)
     for state, value in states.items():
@@ -488,6 +502,7 @@ def main():
         anomaly_result,
         server_correlation
     )
+    decision_obj["explanations"] = explanations
 
     # Propagate baseline metadata so reports and decisions can account for baseline strength
     decision_obj["baseline_meta"] = anomaly_result.get("baseline_meta")
