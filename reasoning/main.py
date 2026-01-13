@@ -126,16 +126,44 @@ def print_client_host_metrics(host_telemetry, host_validation, rules):
 
     # Build rule lookup (may be partial)
     rule_lookup = {
-        "cpu.avg_pct": rules.get("cpu", {}).get("avg_pct_max"),
-        "cpu.max_pct": rules.get("cpu", {}).get("max_pct_max"),
-        "memory.avg_pct": rules.get("memory", {}).get("avg_pct_max"),
-        "memory.max_pct": rules.get("memory", {}).get("max_pct_max"),
-        "memory.swap_used_pct": rules.get("memory", {}).get("swap_used_pct_max"),
-        "disk.iowait_avg_pct": rules.get("disk", {}).get("iowait_avg_pct_max"),
-        "disk.iowait_max_pct": rules.get("disk", {}).get("iowait_max_pct_max"),
-        "network.tx_bytes_per_sec": rules.get("network", {}).get("tx_bytes_per_sec_min"),
-        "os.load_avg_per_core": rules.get("os", {}).get("load_avg_per_core_max"),
+        "cpu.avg_pct": {
+            "type": "max",
+            "value": rules.get("cpu", {}).get("avg_pct_max")
+        },
+        "cpu.max_pct": {
+            "type": "max",
+            "value": rules.get("cpu", {}).get("max_pct_max")
+        },
+        "memory.avg_pct": {
+            "type": "max",
+            "value": rules.get("memory", {}).get("avg_pct_max")
+        },
+        "memory.max_pct": {
+            "type": "max",
+            "value": rules.get("memory", {}).get("max_pct_max")
+        },
+        "memory.swap_used_pct": {
+            "type": "max",
+            "value": rules.get("memory", {}).get("swap_used_pct_max")
+        },
+        "disk.iowait_avg_pct": {
+            "type": "max",
+            "value": rules.get("disk", {}).get("iowait_avg_pct_max")
+        },
+        "disk.iowait_max_pct": {
+            "type": "max",
+            "value": rules.get("disk", {}).get("iowait_max_pct_max")
+        },
+        "network.tx_bytes_per_sec": {
+            "type": "min",   # 👈 THIS IS THE IMPORTANT PART
+            "value": rules.get("network", {}).get("tx_bytes_per_sec_min")
+        },
+        "os.load_avg_per_core": {
+            "type": "max",
+            "value": rules.get("os", {}).get("load_avg_per_core_max")
+        },
     }
+
 
     violated = {v["metric"] for v in host_validation["violations"]}
 
@@ -147,7 +175,29 @@ def print_client_host_metrics(host_telemetry, host_validation, rules):
             continue
 
         symbol = "✖" if metric in violated else "✔"
-        print(f"     {symbol} {metric} = {value} (allowed < {rule})", flush=True)
+        rule_meta = rule_lookup.get(metric)
+
+        if rule_meta is None or rule_meta["value"] is None:
+            print(f"     • {metric} = {value} (no rule)", flush=True)
+            continue
+
+        rule_type = rule_meta["type"]
+        limit = rule_meta["value"]
+
+        if rule_type == "max":
+            comparison = f"< {limit}"
+        elif rule_type == "min":
+            comparison = f">= {limit}"
+        else:
+            comparison = f"{limit}"
+
+        symbol = "✖" if metric in violated else "✔"
+
+        print(
+            f"     {symbol} {metric} = {value} (allowed {comparison})",
+            flush=True
+        )
+
 
         effect = CLIENT_HOST_EFFECTS.get(metric)
         if effect:
