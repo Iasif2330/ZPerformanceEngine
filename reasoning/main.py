@@ -65,33 +65,20 @@ def main():
     print("==============================\n")
 
     causal_chain = []
-
     reasoning_phase = os.environ.get("REASONING_PHASE", "postrun").lower()
 
     # ============================================================
-    # 1. RUN CONTEXT
+    # RUN CONTEXT (ALWAYS COLLECT)
     # ============================================================
     environment = os.environ.get("ENVIRONMENT")
     load_profile = os.environ.get("LOAD_PROFILE")
     build_number = os.environ.get("BUILD_NUMBER", "local")
     target_host = os.environ.get("TARGET_HOST")
 
-    if not environment:
-        fail("ENVIRONMENT is not set")
-    if not load_profile:
-        fail("LOAD_PROFILE is not set")
-    if not target_host:
-        fail("TARGET_HOST is not set")
+    if not environment or not load_profile or not target_host:
+        fail("ENVIRONMENT, LOAD_PROFILE, or TARGET_HOST missing")
 
     run_id = f"jenkins-{build_number}"
-
-    if reasoning_phase == "preflight":
-        section("Run Context")
-        kv("Environment", environment)
-        kv("Load Profile", load_profile)
-        kv("Run ID", run_id)
-        kv("Target Host", target_host)
-        kv("Reasoning Phase", reasoning_phase)
 
     causal_chain.append({
         "step": "Run context initialized",
@@ -105,7 +92,7 @@ def main():
     })
 
     # ============================================================
-    # 2. LOAD RULES
+    # LOAD RULES
     # ============================================================
     client_host_rules = load_yaml("reasoning/rules/client_host_rules.yaml")
     network_rules = load_yaml("reasoning/rules/network_rules.yaml")
@@ -121,19 +108,19 @@ def main():
         "error_rate_pct": client_metrics_rules_yaml["errors"]["max_error_rate_pct"]
     }
 
-    # ============================================================
-    # PRE-FLIGHT SNAPSHOT STATE
-    # ============================================================
-    host_validation = None
-    network_validation = None
-
     snapshot_path = "output/reasoning/preflight_snapshot.yaml"
 
     # ============================================================
-    # 3–4. PRE-FLIGHT CHECKS
+    # PRE-FLIGHT
     # ============================================================
     if reasoning_phase == "preflight":
-        section("Client Host Health Check")
+        section("Run Context")
+        kv("Environment", environment)
+        kv("Load Profile", load_profile)
+        kv("Run ID", run_id)
+        kv("Target Host", target_host)
+
+        section("Client Host Health")
         host_telemetry = ClientHostCollector().collect()
         host_validation = ClientHostValidator(client_host_rules).validate(host_telemetry)
 
@@ -149,11 +136,10 @@ def main():
             "evidence": host_telemetry
         })
 
-        section("Network Path Health Check")
-
+        section("Network Health")
         if is_localhost(target_host):
-            kv("Status", "NOT_APPLICABLE")
             network_validation = {"status": "NOT_APPLICABLE"}
+            kv("Status", "NOT_APPLICABLE")
         else:
             net_telemetry = NetworkCollector(target_host).collect()
             network_validation = NetworkValidator(network_rules, environment).validate(net_telemetry)
@@ -191,33 +177,21 @@ def main():
         )
 
     # ============================================================
-    # LOAD SNAPSHOT (POST-RUN)
+    # POST-FLIGHT
     # ============================================================
     if not os.path.exists(snapshot_path):
-        fail("Missing preflight snapshot; cannot run postrun reasoning")
+        fail("Missing preflight snapshot")
 
     with open(snapshot_path) as f:
         snapshot = yaml.safe_load(f)
 
-    host_validation = snapshot.get("client_host")
-    network_validation = snapshot.get("network")
+    host_validation = snapshot["client_host"]
+    network_validation = snapshot["network"]
 
-    # ============================================================
-    # 5. CLIENT METRICS
-    # ============================================================
     section("Client Performance Metrics")
-
-    results_jtl = "output/results.jtl"
-    statistics_json = "output/dashboard/statistics.json"
-
-    if not os.path.exists(results_jtl):
-        fail(f"Missing JMeter results file: {results_jtl}")
-    if not os.path.exists(statistics_json):
-        fail(f"Missing JMeter statistics file: {statistics_json}")
-
     client_metrics = ClientMetricsCollector(
-        results_jtl_path=results_jtl,
-        statistics_json_path=statistics_json
+        "output/results.jtl",
+        "output/dashboard/statistics.json"
     ).collect()
 
     kv("P95 latency (ms)", client_metrics["latency"]["p95_ms"])
@@ -225,17 +199,10 @@ def main():
 
     causal_chain.append({
         "step": "Client metrics collected",
-        "evidence": {
-            "p95_ms": client_metrics["latency"]["p95_ms"],
-            "error_rate_pct": client_metrics["errors"]["error_rate_pct"]
-        }
+        "evidence": client_metrics
     })
 
-    # ============================================================
-    # 6. BASELINE & ANOMALY
-    # ============================================================
     section("Baseline & Anomaly Detection")
-
     baseline_store = BaselineStore(baseline_policy, environment, load_profile)
     baseline_metrics = baseline_store.load_baseline()
 
@@ -252,32 +219,21 @@ def main():
         "evidence": anomaly_result
     })
 
-    # ============================================================
-    # 7. SERVER METRICS
-    # ============================================================
     section("Server Metrics Correlation")
-
     start_ts = load_ts("output/test_start_ts")
     end_ts = load_ts("output/test_end_ts")
 
-    kv("Server metrics window", f"{start_ts} → {end_ts}")
-
     server_metrics = ServerCollector().collect(
-        environment=environment,
-        service=os.environ.get("SERVICE_NAME", "captain-api"),
-        start_ts=start_ts,
-        end_ts=end_ts
+        environment,
+        os.environ.get("SERVICE_NAME", "captain-api"),
+        start_ts,
+        end_ts
     )
 
     for s in server_metrics.get("signals", []):
         evidence(s["metric"], s["current"])
 
-    server_correlation = Correlator().correlate(
-        server_metrics=server_metrics,
-        server_baseline=None,
-        rules=server_rules
-    )
-
+    server_correlation = Correlator().correlate(server_metrics, None, server_rules)
     kv("Server correlation status", server_correlation["status"])
 
     causal_chain.append({
@@ -285,14 +241,10 @@ def main():
         "evidence": server_correlation
     })
 
-    # ============================================================
-    # 8. FINAL DECISION
-    # ============================================================
     section("Final Decision")
-
     decision_obj = DecisionEngine(auto_accept_rules).decide(
-        client_anomaly=anomaly_result,
-        server_correlation=server_correlation
+        anomaly_result,
+        server_correlation
     )
 
     kv("Decision", decision_obj["decision"])
@@ -300,9 +252,10 @@ def main():
 
     decision_obj["causal_chain"] = causal_chain
 
-    # ============================================================
-    # 9. REPORT
-    # ============================================================
+    section("Causal Chain")
+    for i, step in enumerate(causal_chain, 1):
+        print(f"\n{i}. {step['step']}", flush=True)
+
     ReasoningReport().generate(
         output_dir="output/reasoning",
         metadata={
@@ -329,9 +282,6 @@ def _final_exit(
     client_host, network, client_metrics,
     baseline, anomaly, server_correlation
 ):
-    # ------------------------------------------------------------
-    # Generate reasoning report artifacts (UNCHANGED BEHAVIOR)
-    # ------------------------------------------------------------
     ReasoningReport().generate(
         output_dir="output/reasoning",
         metadata={
@@ -354,31 +304,9 @@ def _final_exit(
         }
     )
 
-    # ------------------------------------------------------------
-    # PRINT CAUSAL CHAIN TO CONSOLE (FOR JENKINS VISIBILITY)
-    # ------------------------------------------------------------
-    print("\n▶ Causal Chain", flush=True)
-
-    for i, step in enumerate(causal_chain, 1):
-        print(f"\n{i}. {step.get('step')}", flush=True)
-
-        ev = step.get("evidence")
-        if isinstance(ev, dict):
-            for k, v in ev.items():
-                print(f"   Evidence: {k} = {v}", flush=True)
-        elif isinstance(ev, str):
-            print(f"   Evidence: {ev}", flush=True)
-
-        if "impact" in step:
-            print(f"   Impact: {step['impact']}", flush=True)
-
-    # ------------------------------------------------------------
-    # Final summary line (useful in Jenkins)
-    # ------------------------------------------------------------
-    print(
-        f"\n▶ Final Outcome: decision={decision}, confidence={confidence}",
-        flush=True
-    )
+    section("Final Outcome")
+    kv("Decision", decision)
+    kv("Confidence", confidence)
 
     sys.exit(0)
 
