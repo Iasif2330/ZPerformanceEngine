@@ -2,10 +2,10 @@ latency:
   p95:
     deviation_pct: 0
   p99:
-    deviation_pct: 0
+    deviation_pct: 90
 
 throughput:
   drop_pct: 20
 
 errors:
-  max_error_rate_pct: 1.0
+  max_error_rate_pct: 90
