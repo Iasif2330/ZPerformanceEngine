@@ -644,12 +644,16 @@ def main():
         print(f"     {symbol} {state}: {value}", flush=True)
         print(f"        ↳ {state_explanations[state]}", flush=True)
     section("Explanation")
-    explanations = ExplanationEngine(EXPLANATION_RULES).explain(
-        anomaly_result,
-        server_correlation
-    )
-    for line in explanations:
-        print(f"  • {line}", flush=True)
+    if anomaly_result.get("status") == "OK":
+        explanations = ["No client-side anomalies detected."]
+        print("  • No client-side anomalies detected.", flush=True)
+    else:
+        explanations = ExplanationEngine(EXPLANATION_RULES).explain(
+            anomaly_result,
+            server_correlation
+        )
+        for line in explanations:
+            print(f"  • {line}", flush=True)
     causal_chain.append({
         "step": "Explanation derived",
         "evidence": explanations
