@@ -63,34 +63,7 @@ pipeline {
                             : durRaw.toInteger()
 
                     // ============================
-                    // Resolve ALL APIs from apis.yaml
-                    // ============================
-                    def allApis = []
-                    def apisYamlFile = new File("config/apis.yaml")
-
-                    def apisYamlText
-                    try {
-                        apisYamlText = readFile('config/apis.yaml')
-                    } catch (Exception e) {
-                        error "config/apis.yaml not found or unreadable"
-                    }
-
-                    def yaml = new org.yaml.snakeyaml.Yaml()
-                    def apisData = yaml.load(apisYamlText)
-
-
-                    if (!(apisData instanceof Map) || !(apisData.apis instanceof Map)) {
-                        error "Invalid structure in config/apis.yaml (expected: apis: { ... })"
-                    }
-
-                    allApis = apisData.apis.keySet().collect { it.toString() }
-
-                    if (allApis.isEmpty()) {
-                        error "No APIs defined in config/apis.yaml"
-                    }
-
-                    // ============================
-                    // Parse SELECTED_APIS
+                    // Parse SELECTED_APIS (UI only)
                     // ============================
                     def apisValueRaw = params.SELECTED_APIS ?: ""
                     def apisValue = []
@@ -126,10 +99,7 @@ pipeline {
                     else if (!nonLoginApis.isEmpty()) {
                         cliArgs += "-Dapis=${nonLoginApis.join(',')} "
                     }
-                    else {
-                        // No UI selection → ALL APIs from YAML
-                        cliArgs += "-Dapis=${allApis.join(',')} "
-                    }
+                    // else: NO -Dapis → engine runs ALL APIs
 
                     // ============================
                     // Resolve TARGET_HOST
@@ -150,8 +120,8 @@ pipeline {
                     }
 
                     env.TARGET_HOST  = host
-                    env.CLI_ARGS    = cliArgs
-                    env.ENVIRONMENT = envValue
+                    env.CLI_ARGS     = cliArgs
+                    env.ENVIRONMENT  = envValue
                     env.LOAD_PROFILE = profileValue
 
                     echo """
@@ -162,6 +132,7 @@ pipeline {
                 }
             }
         }
+
         /* ============================
          * STAGE 4 — Generate Dynamic JMX
          * ============================ */
