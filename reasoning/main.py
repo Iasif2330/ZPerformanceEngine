@@ -130,66 +130,66 @@ def main():
     network_telemetry = None
 
     if reasoning_phase == "preflight":
-    # ============================================================
-    # 3. CLIENT HOST HEALTH (PRE-FLIGHT ONLY)
-    # ============================================================
-    section("Client Host Health Check")
-    host_telemetry = ClientHostCollector().collect()
-    host_validation = ClientHostValidator(client_host_rules).validate(host_telemetry)
+        # ============================================================
+        # 3. CLIENT HOST HEALTH (PRE-FLIGHT ONLY)
+        # ============================================================
+        section("Client Host Health Check")
+        host_telemetry = ClientHostCollector().collect()
+        host_validation = ClientHostValidator(client_host_rules).validate(host_telemetry)
 
-    kv("Status", host_validation["status"])
-    evidence("CPU avg %", host_telemetry.get("cpu", {}).get("avg_pct"))
-    evidence("CPU max %", host_telemetry.get("cpu", {}).get("max_pct"))
-    evidence("Memory avg %", host_telemetry.get("memory", {}).get("avg_pct"))
-    evidence("Memory max %", host_telemetry.get("memory", {}).get("max_pct"))
-    evidence("OS load avg (1m)", host_telemetry.get("os", {}).get("load_avg_1m"))
+        kv("Status", host_validation["status"])
+        evidence("CPU avg %", host_telemetry.get("cpu", {}).get("avg_pct"))
+        evidence("CPU max %", host_telemetry.get("cpu", {}).get("max_pct"))
+        evidence("Memory avg %", host_telemetry.get("memory", {}).get("avg_pct"))
+        evidence("Memory max %", host_telemetry.get("memory", {}).get("max_pct"))
+        evidence("OS load avg (1m)", host_telemetry.get("os", {}).get("load_avg_1m"))
 
-    causal_chain.append({
-        "step": "Client host health validated",
-        "evidence": host_telemetry
-    })
+        causal_chain.append({
+            "step": "Client host health validated",
+            "evidence": host_telemetry
+        })
 
-    # ============================================================
-    # 4. NETWORK HEALTH (PRE-FLIGHT ONLY)
-    # ============================================================
-    section("Network Path Health Check")
+        # ============================================================
+        # 4. NETWORK HEALTH (PRE-FLIGHT ONLY)
+        # ============================================================
+        section("Network Path Health Check")
 
-    if is_localhost(target_host):
-        kv("Status", "NOT_APPLICABLE")
-        network_validation = {"status": "NOT_APPLICABLE"}
-    else:
-        network_telemetry = NetworkCollector(target_host).collect()
-        network_validation = NetworkValidator(network_rules, environment).validate(network_telemetry)
+        if is_localhost(target_host):
+            kv("Status", "NOT_APPLICABLE")
+            network_validation = {"status": "NOT_APPLICABLE"}
+        else:
+            network_telemetry = NetworkCollector(target_host).collect()
+            network_validation = NetworkValidator(network_rules, environment).validate(network_telemetry)
 
-        kv("Status", network_validation["status"])
-        evidence("RTT avg (ms)", network_telemetry.get("rtt", {}).get("avg_ms"))
-        evidence("Packet loss %", network_telemetry.get("packet_loss", {}).get("pct"))
+            kv("Status", network_validation["status"])
+            evidence("RTT avg (ms)", network_telemetry.get("rtt", {}).get("avg_ms"))
+            evidence("Packet loss %", network_telemetry.get("packet_loss", {}).get("pct"))
 
-    causal_chain.append({
-        "step": "Network health validated",
-        "evidence": network_telemetry
-    })
+        causal_chain.append({
+            "step": "Network health validated",
+            "evidence": network_telemetry
+        })
 
 
-    # ============================================================
-    # PRE-FLIGHT EXIT (NO DECISION HERE)
-    # ============================================================
-    if reasoning_phase == "preflight":
-        _final_exit(
-            decision="ACCEPT",
-            confidence="HIGH",
-            reasons=["Pre-flight checks passed"],
-            causal_chain=causal_chain,
-            environment=environment,
-            load_profile=load_profile,
-            run_id=run_id,
-            client_host=host_validation,
-            network=network_validation,
-            client_metrics=None,
-            baseline=None,
-            anomaly=None,
-            server_correlation=None
-        )
+        # ============================================================
+        # PRE-FLIGHT EXIT (NO DECISION HERE)
+        # ============================================================
+        if reasoning_phase == "preflight":
+            _final_exit(
+                decision="ACCEPT",
+                confidence="HIGH",
+                reasons=["Pre-flight checks passed"],
+                causal_chain=causal_chain,
+                environment=environment,
+                load_profile=load_profile,
+                run_id=run_id,
+                client_host=host_validation,
+                network=network_validation,
+                client_metrics=None,
+                baseline=None,
+                anomaly=None,
+                server_correlation=None
+            )
 
     # ============================================================
     # 5. CLIENT METRICS (POST-RUN ONLY)
