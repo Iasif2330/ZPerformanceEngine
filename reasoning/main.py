@@ -390,14 +390,32 @@ def main():
 
     section("Baseline & Anomaly Detection")
     baseline_store = BaselineStore(baseline_policy, environment, load_profile)
-    baseline_metrics = baseline_store.load_baseline()
+    baseline = baseline_store.load_baseline()
+
+    # Anomaly detector expects the raw metric dict — extract when we return a wrapped baseline
+    baseline_for_detection = (
+        baseline["metrics"] if isinstance(baseline, dict) and "metrics" in baseline else baseline
+    )
 
     anomaly_result = AnomalyDetector(client_metrics_rules).detect(
         current=client_metrics,
-        baseline=baseline_metrics
+        baseline=baseline_for_detection
     )
 
-    kv("Anomaly status", anomaly_result["status"])
+    # Expose baseline meta to anomaly result for downstream reporting
+    if isinstance(baseline, dict) and "meta" in baseline:
+        anomaly_result["baseline_meta"] = baseline["meta"]
+
+    kv("Anomaly Status", anomaly_result["status"])
+
+    if anomaly_result["status"] == "NO_BASELINE":
+        evidence("Baseline", "Learning phase (no baseline yet)")
+    elif anomaly_result["status"] == "WEAK_BASELINE":
+        evidence(
+            "Baseline",
+            f"Weak baseline (samples = {anomaly_result['baseline_meta']['sample_count']})"
+        )
+
     baseline_store.save_run(run_id, client_metrics)
 
     causal_chain.append({
@@ -433,6 +451,9 @@ def main():
         server_correlation
     )
 
+    # Propagate baseline metadata so reports and decisions can account for baseline strength
+    decision_obj["baseline_meta"] = anomaly_result.get("baseline_meta")
+
     kv("Decision", decision_obj["decision"])
     kv("Confidence", decision_obj["confidence"])
 
@@ -453,7 +474,7 @@ def main():
         client_host=host_validation,
         network=network_validation,
         client_metrics=client_metrics,
-        baseline=baseline_metrics,
+        baseline=baseline,
         anomaly=anomaly_result,
         server_correlation=server_correlation,
         decision=decision_obj

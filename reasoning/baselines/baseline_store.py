@@ -100,10 +100,19 @@ class BaselineStore:
         if len(snapshots) < min_required:
             return None
 
-        selected = snapshots[:window_size]
+        # Use oldest runs to avoid poisoning baseline with recent regressions
+        selected = list(reversed(snapshots))[:window_size]
         metrics = [s["client_metrics"] for s in selected]
 
-        return self._aggregate(metrics, aggregation)
+        return {
+            "metrics": self._aggregate(metrics, aggregation),
+            "meta": {
+                "type": "rolling",
+                "window_size": window_size,
+                "aggregation": aggregation,
+                "sample_count": len(metrics),
+            }
+        }
 
     def _load_snapshot_baseline(self) -> dict:
         snapshot_name = self.policy["baseline"]["snapshot"]["name"]
@@ -117,7 +126,13 @@ class BaselineStore:
         with path.open() as f:
             data = json.load(f)
 
-        return data["client_metrics"]
+        return {
+            "metrics": data["client_metrics"],
+            "meta": {
+                "type": "snapshot",
+                "name": snapshot_name,
+            }
+        }
 
     def _load_scoped_snapshots(self) -> list[dict]:
         """
@@ -138,6 +153,8 @@ class BaselineStore:
                 data.get("environment") == self.environment and
                 data.get("load_profile") == self.load_profile
             ):
+                # Store filename to make deletion safer later
+                data["_filename"] = path.name
                 snapshots.append(data)
 
         snapshots.sort(key=lambda x: x["timestamp"], reverse=True)
@@ -182,12 +199,6 @@ class BaselineStore:
 
         # Delete older snapshots beyond retention window
         for snapshot in snapshots[max_snapshots:]:
-            filename = (
-                f"{snapshot['timestamp']}__"
-                f"{snapshot['environment']}__"
-                f"{snapshot['load_profile']}__"
-                f"{snapshot['run_id']}.json"
-            )
-            path = self.storage_path / filename
+            path = self.storage_path / snapshot["_filename"]
             if path.exists():
                 path.unlink()
