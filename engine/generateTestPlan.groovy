@@ -408,6 +408,7 @@ def buildAssertionFromSpec = { builder, apiName, spec ->
     }
 }
 
+
 // ===================================================================
 // CLEAN old dashboard folder BEFORE generating new JMX/report
 def dashDir = new File("output/dashboard")
@@ -492,8 +493,15 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
         // LOGIN SAMPLER
         def login = loginApi
         def loginPayloadFile = (login.payload == "useEnv")
-          ? envConfig[envName].payloads[login.name]
+          ? envConfig[envName]?.payloads?.get(login.name)
           : login.payload
+
+        if (!loginPayloadFile) {
+            throw new IllegalStateException(
+                "Missing payload for LOGIN API '${login.name}' in environment '${envName}'"
+            )
+        }
+        def loginPayloadText = new File(loginPayloadFile).text
 
         HTTPSamplerProxy(
           guiclass:"HttpTestSampleGui",
@@ -515,7 +523,7 @@ xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
             collectionProp(name:"Arguments.arguments") {
               elementProp(name:"body", elementType:"HTTPArgument") {
                 boolProp(name:"HTTPArgument.always_encode","false")
-                stringProp(name:"Argument.value", new File(loginPayloadFile).text)
+                stringProp(name:"Argument.value", loginPayloadText)
                 stringProp(name:"Argument.metadata","=")
               }
             }
@@ -564,8 +572,16 @@ resolveAssertionsForApi(login.name).each { spec ->
         otherApis.each { api ->
 
           def payloadFile = (api.payload == "useEnv")
-            ? envConfig[envName].payloads[api.name]
+            ? envConfig[envName]?.payloads?.get(api.name)
             : api.payload
+
+          if (!payloadFile) {
+              throw new IllegalStateException(
+                  "Missing payload for API '${api.name}' in environment '${envName}'"
+              )
+          }
+
+          def payloadText = new File(payloadFile).text
 
           HTTPSamplerProxy(
             guiclass:"HttpTestSampleGui",
@@ -587,7 +603,7 @@ resolveAssertionsForApi(login.name).each { spec ->
               collectionProp(name:"Arguments.arguments") {
                 elementProp(name:"body",elementType:"HTTPArgument") {
                   boolProp(name:"HTTPArgument.always_encode","false")
-                  stringProp(name:"Argument.value", new File(payloadFile).text)
+                  stringProp(name:"Argument.value", payloadText)
                   stringProp(name:"Argument.metadata","=")
                 }
               }
