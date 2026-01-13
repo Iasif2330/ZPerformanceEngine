@@ -329,6 +329,9 @@ def _final_exit(
     client_host, network, client_metrics,
     baseline, anomaly, server_correlation
 ):
+    # ------------------------------------------------------------
+    # Generate reasoning report artifacts (UNCHANGED BEHAVIOR)
+    # ------------------------------------------------------------
     ReasoningReport().generate(
         output_dir="output/reasoning",
         metadata={
@@ -349,6 +352,32 @@ def _final_exit(
             "reasons": reasons,
             "causal_chain": causal_chain
         }
+    )
+
+    # ------------------------------------------------------------
+    # PRINT CAUSAL CHAIN TO CONSOLE (FOR JENKINS VISIBILITY)
+    # ------------------------------------------------------------
+    print("\n▶ Causal Chain", flush=True)
+
+    for i, step in enumerate(causal_chain, 1):
+        print(f"\n{i}. {step.get('step')}", flush=True)
+
+        ev = step.get("evidence")
+        if isinstance(ev, dict):
+            for k, v in ev.items():
+                print(f"   Evidence: {k} = {v}", flush=True)
+        elif isinstance(ev, str):
+            print(f"   Evidence: {ev}", flush=True)
+
+        if "impact" in step:
+            print(f"   Impact: {step['impact']}", flush=True)
+
+    # ------------------------------------------------------------
+    # Final summary line (useful in Jenkins)
+    # ------------------------------------------------------------
+    print(
+        f"\n▶ Final Outcome: decision={decision}, confidence={confidence}",
+        flush=True
     )
 
     sys.exit(0)
