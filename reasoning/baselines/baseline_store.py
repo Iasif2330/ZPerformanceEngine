@@ -131,6 +131,7 @@ class BaselineStore:
             "meta": {
                 "type": "snapshot",
                 "name": snapshot_name,
+                "sample_count": 1,
             }
         }
 

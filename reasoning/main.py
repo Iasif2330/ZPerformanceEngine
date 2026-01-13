@@ -388,18 +388,29 @@ def main():
         "evidence": client_metrics
     })
 
-    section("Baseline & Anomaly Detection")
+    # -----------------------------
+    # Baseline Evaluation
+    # -----------------------------
+    section("Baseline Evaluation")
+
     baseline_store = BaselineStore(baseline_policy, environment, load_profile)
     baseline = baseline_store.load_baseline()
 
-    # Anomaly detector expects the raw metric dict — extract when we return a wrapped baseline
-    baseline_for_detection = (
-        baseline["metrics"] if isinstance(baseline, dict) and "metrics" in baseline else baseline
-    )
+    if baseline is None:
+        kv("Baseline Status", "LEARNING (no baseline yet)")
+    else:
+        meta = baseline["meta"]
+        kv("Baseline Type", meta["type"])
+        kv("Sample Count", meta.get("sample_count"))
+
+    # -----------------------------
+    # Anomaly Detection
+    # -----------------------------
+    section("Anomaly Detection")
 
     anomaly_result = AnomalyDetector(client_metrics_rules).detect(
         current=client_metrics,
-        baseline=baseline_for_detection
+        baseline=(baseline["metrics"] if baseline is not None else None)
     )
 
     # Expose baseline meta to anomaly result for downstream reporting
@@ -408,13 +419,22 @@ def main():
 
     kv("Anomaly Status", anomaly_result["status"])
 
-    if anomaly_result["status"] == "NO_BASELINE":
-        evidence("Baseline", "Learning phase (no baseline yet)")
-    elif anomaly_result["status"] == "WEAK_BASELINE":
+    if anomaly_result["status"] == "WEAK_BASELINE":
         evidence(
-            "Baseline",
-            f"Weak baseline (samples = {anomaly_result['baseline_meta']['sample_count']})"
+            "Baseline strength",
+            f"Weak (samples = {anomaly_result['baseline_meta']['sample_count']})"
         )
+
+    if anomaly_result.get("anomalies"):
+        print("\n  Detected Anomalies:", flush=True)
+        for name, details in anomaly_result["anomalies"].items():
+            print(
+                f"     ✖ {name}: "
+                f"current={details.get('current')} "
+                f"(baseline={details.get('baseline')}, "
+                f"threshold={details.get('threshold_pct')}%)",
+                flush=True
+            )
 
     baseline_store.save_run(run_id, client_metrics)
 
