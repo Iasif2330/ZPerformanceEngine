@@ -90,12 +90,13 @@ def main():
 
     run_id = f"jenkins-{build_number}"
 
-    section("Run Context")
-    kv("Environment", environment)
-    kv("Load Profile", load_profile)
-    kv("Run ID", run_id)
-    kv("Target Host", target_host)
-    kv("Reasoning Phase", reasoning_phase)
+    if reasoning_phase == "preflight":
+        section("Run Context")
+        kv("Environment", environment)
+        kv("Load Profile", load_profile)
+        kv("Run ID", run_id)
+        kv("Target Host", target_host)
+        kv("Reasoning Phase", reasoning_phase)
 
     causal_chain.append({
         "step": "Run context initialized",
