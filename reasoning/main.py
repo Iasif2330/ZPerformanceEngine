@@ -223,7 +223,7 @@ def explain_server_states(server_metrics, server_states, server_rules):
     threads = metrics.get("threads")
 
     cpu_limit = rules.get("cpu", {}).get("minor_abs", 80)
-    thread_limit = rules.get("threads", {}).get("minor_abs", 200)
+    thread_limit = rules["threads"]["minor_abs"]
 
     if server_states.get("server_saturated"):
         explanations["server_saturated"] = (
