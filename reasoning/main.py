@@ -108,17 +108,21 @@ NETWORK_EFFECTS = {
 def print_client_host_metrics(host_telemetry, host_validation, rules):
     print("\n  Metrics vs Rules:", flush=True)
 
-    rule_map = {
-        "cpu.avg_pct": rules["cpu"]["avg_pct_max"],
-        "cpu.max_pct": rules["cpu"]["max_pct_max"],
-        "memory.avg_pct": rules["memory"]["avg_pct_max"],
-        "memory.max_pct": rules["memory"]["max_pct_max"],
-        "memory.swap_used_pct": rules["memory"]["swap_used_pct_max"],
-        "disk.iowait_avg_pct": rules["disk"]["iowait_avg_pct_max"],
-        "disk.iowait_max_pct": rules["disk"]["iowait_max_pct_max"],
-        "network.tx_bytes_per_sec": rules["network"]["tx_bytes_per_sec_min"],
-        "os.load_avg_per_core": rules["os"]["load_avg_per_core_max"],
-    }
+    rule_map = {}
+    if "cpu" in rules:
+        rule_map["cpu.avg_pct"] = rules["cpu"]["avg_pct_max"]
+        rule_map["cpu.max_pct"] = rules["cpu"]["max_pct_max"]
+    if "memory" in rules:
+        rule_map["memory.avg_pct"] = rules["memory"]["avg_pct_max"]
+        rule_map["memory.max_pct"] = rules["memory"]["max_pct_max"]
+        rule_map["memory.swap_used_pct"] = rules["memory"]["swap_used_pct_max"]
+    if "disk" in rules:
+        rule_map["disk.iowait_avg_pct"] = rules["disk"]["iowait_avg_pct_max"]
+        rule_map["disk.iowait_max_pct"] = rules["disk"]["iowait_max_pct_max"]
+    if "network" in rules:
+        rule_map["network.tx_bytes_per_sec"] = rules["network"]["tx_bytes_per_sec_min"]
+    if "os" in rules:
+        rule_map["os.load_avg_per_core"] = rules["os"]["load_avg_per_core_max"]
 
 def explain_server_states(server_metrics, server_states, server_rules):
     """
@@ -525,7 +529,7 @@ def main():
         end_ts
     )
 
-    print("\n  Server Metrics (aggregated over anomaly window):", flush=True)
+    print("\n  Server Metrics (aggregated over test window):", flush=True)
     for s in server_metrics.get("signals", []):
         evidence(
             f"{s['metric']} ({s['aggregation']})",
