@@ -68,12 +68,16 @@ pipeline {
                     def allApis = []
                     def apisYamlFile = new File("config/apis.yaml")
 
-                    if (!apisYamlFile.exists()) {
-                        error "config/apis.yaml not found"
+                    def apisYamlText
+                    try {
+                        apisYamlText = readFile('config/apis.yaml')
+                    } catch (Exception e) {
+                        error "config/apis.yaml not found or unreadable"
                     }
 
                     def yaml = new org.yaml.snakeyaml.Yaml()
-                    def apisData = yaml.load(apisYamlFile.text)
+                    def apisData = yaml.load(apisYamlText)
+
 
                     if (!(apisData instanceof Map) || !(apisData.apis instanceof Map)) {
                         error "Invalid structure in config/apis.yaml (expected: apis: { ... })"
