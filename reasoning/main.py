@@ -408,6 +408,12 @@ def main():
     # -----------------------------
     section("Anomaly Detection")
 
+    section("Baseline Debug")
+    print("Baseline value:", baseline, flush=True)
+    print("Baseline type:", type(baseline), flush=True)
+    if baseline:
+        print("Baseline keys:", baseline.keys(), flush=True)
+
     anomaly_result = AnomalyDetector(client_metrics_rules).detect(
         current=client_metrics,
         baseline=(baseline["metrics"] if baseline is not None else None)
