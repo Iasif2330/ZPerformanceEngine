@@ -225,41 +225,51 @@ def explain_server_states(server_metrics, server_states, server_rules):
     cpu_limit = rules.get("cpu", {}).get("minor_abs", 80)
     thread_limit = rules.get("threads", {}).get("minor_abs", 200)
 
-    explanations["server_saturated"] = (
-        f"CPU max {cpu}% < {cpu_limit}%, threads max {threads} < {thread_limit}"
-        if not server_states.get("server_saturated")
-        else
-        f"CPU or threads exceeded saturation thresholds"
-    )
+    if server_states.get("server_saturated"):
+        explanations["server_saturated"] = (
+            f"CPU max {cpu}% ≥ {cpu_limit}% or "
+            f"threads max {threads} ≥ {thread_limit}"
+        )
+    else:
+        explanations["server_saturated"] = (
+            f"CPU max {cpu}% < {cpu_limit}%, "
+            f"threads max {threads} < {thread_limit}"
+        )
 
     # ---- server_slow ----
     lat = metrics.get("httplatp95")
     lat_limit = rules.get("httplatp95", {}).get("minor_abs", 500)
 
-    explanations["server_slow"] = (
-        f"Server p95 latency {lat} ms < {lat_limit} ms"
-        if not server_states.get("server_slow")
-        else
-        f"Server p95 latency exceeded {lat_limit} ms"
-    )
+    if server_states.get("server_slow"):
+        explanations["server_slow"] = (
+            f"Server p95 latency {lat} ms ≥ {lat_limit} ms"
+        )
+    else:
+        explanations["server_slow"] = (
+            f"Server p95 latency {lat} ms < {lat_limit} ms"
+        )
 
     # ---- server_erroring ----
     err = metrics.get("http5xx")
 
-    explanations["server_erroring"] = (
-        f"Server 5xx rate {err} = 0"
-        if not server_states.get("server_erroring")
-        else
-        f"Server returned 5xx errors"
-    )
+    if server_states.get("server_erroring"):
+        explanations["server_erroring"] = (
+            f"Server returned 5xx errors"
+        )
+    else:
+        explanations["server_erroring"] = (
+            f"Server 5xx rate {err} = 0"
+        )
 
     # ---- server_healthy ----
-    explanations["server_healthy"] = (
-        "No saturation, slowness, or server errors observed during anomaly window"
-        if server_states.get("server_healthy")
-        else
-        "One or more server stress conditions detected"
-    )
+    if server_states.get("server_healthy"):
+        explanations["server_healthy"] = (
+            "No saturation, slowness, or server errors observed during anomaly window"
+        )
+    else:
+        explanations["server_healthy"] = (
+            "One or more server stress conditions detected"
+        )
 
     return explanations
 
