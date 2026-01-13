@@ -104,23 +104,6 @@ NETWORK_EFFECTS = {
         "Packet loss can cause retries and dropped requests, invalidating test results.",
 }
 
-def explain_client_host_health(host_telemetry, host_validation, rules):
-    if not host_validation["healthy"]:
-        return "One or more client host metrics exceeded allowed limits"
-
-    cpu = host_telemetry["cpu"]["avg_pct"]
-    mem = host_telemetry["memory"]["avg_pct"]
-    swap = host_telemetry["memory"]["swap_used_pct"]
-
-    cpu_limit = rules["cpu"]["avg_pct_max"]
-    mem_limit = rules["memory"]["avg_pct_max"]
-
-    return (
-        f"CPU avg {cpu}% < {cpu_limit}%, "
-        f"memory avg {mem}% < {mem_limit}%, "
-        f"swap usage {swap}%"
-    )
-
 def print_client_host_metrics(host_telemetry, host_validation, rules):
     print("\n  Metrics vs Rules:", flush=True)
 
@@ -347,13 +330,8 @@ def main():
         host_telemetry = ClientHostCollector().collect()
         host_validation = ClientHostValidator(client_host_rules).validate(host_telemetry)
 
-        symbol = "✔" if host_validation["healthy"] else "✖"
-        print(f"  {symbol} client_host_healthy: {host_validation['healthy']}", flush=True)
-        print(
-            f"     ↳ {explain_client_host_health(host_telemetry, host_validation, client_host_rules['client_host'])}",
-            flush=True
-        )
-
+        kv("Healthy", host_validation["healthy"])
+        kv("Fail Fast", host_validation["fail_fast"])
 
         print_client_host_metrics(
             host_telemetry,
