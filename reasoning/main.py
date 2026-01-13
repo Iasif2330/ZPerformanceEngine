@@ -1,9 +1,6 @@
-# reasoning/main.py
-
 import os
 import sys
 import yaml
-from time import time
 from datetime import datetime, timezone
 
 # ---------------- Collectors ----------------
@@ -36,15 +33,13 @@ def load_yaml(path: str):
     with open(path) as f:
         return yaml.safe_load(f)
 
+
 def load_ts(path: str) -> int:
-    """
-    Load a unix timestamp (seconds) from a file.
-    """
     if not os.path.exists(path):
         fail(f"Missing timestamp file: {path}")
-
     with open(path) as f:
         return int(f.read().strip())
+
 
 def section(title: str):
     print(f"\n▶ {title}", flush=True)
@@ -126,14 +121,18 @@ def main():
         "error_rate_pct": client_metrics_rules_yaml["errors"]["max_error_rate_pct"]
     }
 
-    client_host = None
+    # ============================================================
+    # PRE-FLIGHT SNAPSHOT STATE
+    # ============================================================
+    host_validation = None
     network_validation = None
-    network_telemetry = None
 
+    snapshot_path = "output/reasoning/preflight_snapshot.yaml"
+
+    # ============================================================
+    # 3–4. PRE-FLIGHT CHECKS
+    # ============================================================
     if reasoning_phase == "preflight":
-        # ============================================================
-        # 3. CLIENT HOST HEALTH (PRE-FLIGHT ONLY)
-        # ============================================================
         section("Client Host Health Check")
         host_telemetry = ClientHostCollector().collect()
         host_validation = ClientHostValidator(client_host_rules).validate(host_telemetry)
@@ -150,50 +149,61 @@ def main():
             "evidence": host_telemetry
         })
 
-        # ============================================================
-        # 4. NETWORK HEALTH (PRE-FLIGHT ONLY)
-        # ============================================================
         section("Network Path Health Check")
 
         if is_localhost(target_host):
             kv("Status", "NOT_APPLICABLE")
             network_validation = {"status": "NOT_APPLICABLE"}
         else:
-            network_telemetry = NetworkCollector(target_host).collect()
-            network_validation = NetworkValidator(network_rules, environment).validate(network_telemetry)
+            net_telemetry = NetworkCollector(target_host).collect()
+            network_validation = NetworkValidator(network_rules, environment).validate(net_telemetry)
 
             kv("Status", network_validation["status"])
-            evidence("RTT avg (ms)", network_telemetry.get("rtt", {}).get("avg_ms"))
-            evidence("Packet loss %", network_telemetry.get("packet_loss", {}).get("pct"))
+            evidence("RTT avg (ms)", net_telemetry.get("rtt", {}).get("avg_ms"))
+            evidence("Packet loss %", net_telemetry.get("packet_loss", {}).get("pct"))
 
         causal_chain.append({
             "step": "Network health validated",
-            "evidence": network_telemetry
+            "evidence": network_validation
         })
 
+        os.makedirs("output/reasoning", exist_ok=True)
+        with open(snapshot_path, "w") as f:
+            yaml.safe_dump({
+                "client_host": host_validation,
+                "network": network_validation
+            }, f)
 
-        # ============================================================
-        # PRE-FLIGHT EXIT (NO DECISION HERE)
-        # ============================================================
-        if reasoning_phase == "preflight":
-            _final_exit(
-                decision="ACCEPT",
-                confidence="HIGH",
-                reasons=["Pre-flight checks passed"],
-                causal_chain=causal_chain,
-                environment=environment,
-                load_profile=load_profile,
-                run_id=run_id,
-                client_host=host_validation,
-                network=network_validation,
-                client_metrics=None,
-                baseline=None,
-                anomaly=None,
-                server_correlation=None
-            )
+        _final_exit(
+            decision="ACCEPT",
+            confidence="HIGH",
+            reasons=["Pre-flight checks passed"],
+            causal_chain=causal_chain,
+            environment=environment,
+            load_profile=load_profile,
+            run_id=run_id,
+            client_host=host_validation,
+            network=network_validation,
+            client_metrics=None,
+            baseline=None,
+            anomaly=None,
+            server_correlation=None
+        )
 
     # ============================================================
-    # 5. CLIENT METRICS (POST-RUN ONLY)
+    # LOAD SNAPSHOT (POST-RUN)
+    # ============================================================
+    if not os.path.exists(snapshot_path):
+        fail("Missing preflight snapshot; cannot run postrun reasoning")
+
+    with open(snapshot_path) as f:
+        snapshot = yaml.safe_load(f)
+
+    host_validation = snapshot.get("client_host")
+    network_validation = snapshot.get("network")
+
+    # ============================================================
+    # 5. CLIENT METRICS
     # ============================================================
     section("Client Performance Metrics")
 
@@ -243,67 +253,40 @@ def main():
     })
 
     # ============================================================
-    # 6.5 SERVER METRICS CORRELATION
+    # 7. SERVER METRICS
     # ============================================================
     section("Server Metrics Correlation")
 
-    server_correlation = None
+    start_ts = load_ts("output/test_start_ts")
+    end_ts = load_ts("output/test_end_ts")
 
-    try:
-        start_ts = load_ts("output/test_start_ts")
-        end_ts   = load_ts("output/test_end_ts")
+    kv("Server metrics window", f"{start_ts} → {end_ts}")
 
-        kv("Server metrics window", f"{start_ts} → {end_ts}")
+    server_metrics = ServerCollector().collect(
+        environment=environment,
+        service=os.environ.get("SERVICE_NAME", "captain-api"),
+        start_ts=start_ts,
+        end_ts=end_ts
+    )
 
-        server_metrics = ServerCollector().collect(
-            environment=environment,
-            service=os.environ.get("SERVICE_NAME", "captain-api"),
-            start_ts=start_ts,
-            end_ts=end_ts
-        )
+    for s in server_metrics.get("signals", []):
+        evidence(s["metric"], s["current"])
 
-        if not server_metrics.get("signals"):
-            kv("Server metrics", "No matching Prometheus series found")
-        else:
-            for s in server_metrics["signals"]:
-                evidence(s["metric"], s["current"])
+    server_correlation = Correlator().correlate(
+        server_metrics=server_metrics,
+        server_baseline=None,
+        rules=server_rules
+    )
 
-        causal_chain.append({
-            "step": "Server metrics collected",
-            "evidence": {
-                "window_start_ts": start_ts,
-                "window_end_ts": end_ts,
-                **{
-                    s["metric"]: s["current"]
-                    for s in server_metrics.get("signals", [])
-                }
-            }
-        })
+    kv("Server correlation status", server_correlation["status"])
 
-        server_correlation = Correlator().correlate(
-            server_metrics=server_metrics,
-            server_baseline=None,
-            rules=server_rules
-        )
-
-        kv("Server correlation status", server_correlation.get("status"))
-
-        causal_chain.append({
-            "step": "Server metrics correlated",
-            "evidence": server_correlation
-        })
-
-    except Exception as e:
-        kv("Server correlation", "SKIPPED")
-        evidence("Reason", str(e))
-
-        causal_chain.append({
-            "step": "Server metrics correlation skipped",
-            "evidence": str(e)
-        })
+    causal_chain.append({
+        "step": "Server metrics correlated",
+        "evidence": server_correlation
+    })
 
     # ============================================================
-    # 7. FINAL DECISION (POST-RUN ONLY)
+    # 8. FINAL DECISION
     # ============================================================
     section("Final Decision")
 
@@ -312,33 +295,10 @@ def main():
         server_correlation=server_correlation
     )
 
-    # Bootstrap handling
-    if anomaly_result["status"] == "NO_BASELINE":
-        decision_obj["decision"] = "ACCEPT"
-        decision_obj["confidence"] = "LOW"
-        decision_obj.setdefault("reasons", []).append(
-            "Baseline not yet established; accepting run for bootstrap"
-        )
-
-    decision_obj["causal_chain"] = causal_chain
-
     kv("Decision", decision_obj["decision"])
     kv("Confidence", decision_obj["confidence"])
 
-    # ============================================================
-    # 8. CAUSAL CHAIN PRINT
-    # ============================================================
-    print("\n▶ Causal Chain", flush=True)
-    for i, step in enumerate(causal_chain, 1):
-        print(f"\n{i}. {step['step']}", flush=True)
-        ev = step.get("evidence")
-        if isinstance(ev, dict):
-            for k, v in ev.items():
-                print(f"   Evidence: {k} = {v}", flush=True)
-        elif isinstance(ev, str):
-            print(f"   Evidence: {ev}", flush=True)
-        if "impact" in step:
-            print(f"   Impact: {step['impact']}", flush=True)
+    decision_obj["causal_chain"] = causal_chain
 
     # ============================================================
     # 9. REPORT
@@ -360,7 +320,6 @@ def main():
         decision=decision_obj
     )
 
-    # Never fail Jenkins here; reporting only
     sys.exit(0)
 
 
@@ -370,32 +329,13 @@ def _final_exit(
     client_host, network, client_metrics,
     baseline, anomaly, server_correlation
 ):
-    decision_obj = {
-        "decision": decision,
-        "confidence": confidence,
-        "reasons": reasons,
-        "causal_chain": causal_chain
-    }
-
     ReasoningReport().generate(
         output_dir="output/reasoning",
         metadata={
             "environment": environment,
             "load_profile": load_profile,
             "run_id": run_id,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-
-            # ✅ ONLY include server window if it exists
-            **(
-                {
-                    "server_metrics_window": {
-                        "start_ts": start_ts,
-                        "end_ts": end_ts,
-                    }
-                }
-                if "start_ts" in locals() and "end_ts" in locals()
-                else {}
-            ),
+            "generated_at": datetime.now(timezone.utc).isoformat()
         },
         client_host=client_host,
         network=network,
@@ -403,10 +343,14 @@ def _final_exit(
         baseline=baseline,
         anomaly=anomaly,
         server_correlation=server_correlation,
-        decision=decision_obj
+        decision={
+            "decision": decision,
+            "confidence": confidence,
+            "reasons": reasons,
+            "causal_chain": causal_chain
+        }
     )
 
-    # Preflight exits 0; postrun REVIEW_REQUIRED is reported, not failed
     sys.exit(0)
 
 
