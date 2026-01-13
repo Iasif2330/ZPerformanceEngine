@@ -1,8 +1,8 @@
 latency:
   p95:
-    deviation_pct: 1
+    deviation_pct: 0
   p99:
-    deviation_pct: 1
+    deviation_pct: 0
 
 throughput:
   drop_pct: 20
