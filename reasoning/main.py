@@ -54,6 +54,61 @@ def evidence(label: str, value):
         print(f"     • {label}: {value}", flush=True)
 
 
+def print_client_host_metrics(host_telemetry, host_validation, rules):
+    print("\n  Metrics vs Rules:", flush=True)
+
+    rule_map = {
+        "cpu.avg_pct": rules["cpu"]["avg_pct_max"],
+        "cpu.max_pct": rules["cpu"]["max_pct_max"],
+        "memory.avg_pct": rules["memory"]["avg_pct_max"],
+        "memory.max_pct": rules["memory"]["max_pct_max"],
+        "memory.swap_used_pct": rules["memory"]["swap_used_pct_max"],
+        "disk.iowait_avg_pct": rules["disk"]["iowait_avg_pct_max"],
+        "disk.iowait_max_pct": rules["disk"]["iowait_max_pct_max"],
+        "network.tx_bytes_per_sec": rules["network"]["tx_bytes_per_sec_min"],
+        "os.load_avg_per_core": rules["os"]["load_avg_per_core_max"],
+    }
+
+    # Build observed values
+    observed = {
+        "cpu.avg_pct": host_telemetry["cpu"]["avg_pct"],
+        "cpu.max_pct": host_telemetry["cpu"]["max_pct"],
+        "memory.avg_pct": host_telemetry["memory"]["avg_pct"],
+        "memory.max_pct": host_telemetry["memory"]["max_pct"],
+        "memory.swap_used_pct": host_telemetry["memory"]["swap_used_pct"],
+        "disk.iowait_avg_pct": host_telemetry["disk"]["iowait_avg_pct"],
+        "disk.iowait_max_pct": host_telemetry["disk"]["iowait_max_pct"],
+        "network.tx_bytes_per_sec": host_telemetry["network"]["tx_bytes_per_sec"],
+    }
+
+    # Derived metric
+    cores = host_telemetry["cpu"]["cores"]
+    observed["os.load_avg_per_core"] = round(
+        host_telemetry["os"]["load_avg_1m"] / cores, 2
+    )
+
+    violated_metrics = {
+        v["metric"] for v in host_validation["violations"]
+    }
+
+    for metric, limit in rule_map.items():
+        value = observed.get(metric)
+        if value is None:
+            continue
+
+        if metric in violated_metrics:
+            symbol = "✖"
+            status = f"(allowed < {limit})"
+        else:
+            symbol = "✔"
+            status = f"(allowed < {limit})"
+
+        print(
+            f"     {symbol} {metric} = {value} {status}",
+            flush=True
+        )
+
+
 def is_localhost(host: str) -> bool:
     return host in {"localhost", "127.0.0.1", "::1"}
 
@@ -127,20 +182,11 @@ def main():
         kv("Healthy", host_validation["healthy"])
         kv("Fail Fast", host_validation["fail_fast"])
 
-        print("\n  Collected Metrics:", flush=True)
-        for category, metrics in host_telemetry.items():
-            if isinstance(metrics, dict):
-                for k, v in metrics.items():
-                    evidence(f"{category}.{k}", v)
-
-        if host_validation["violations"]:
-            print("\n  Rule Violations:", flush=True)
-            for v in host_validation["violations"]:
-                print(
-                    f"     ✖ {v['metric']} = {v['observed']} "
-                    f"(allowed {v['threshold']})",
-                    flush=True
-                )
+        print_client_host_metrics(
+            host_telemetry,
+            host_validation,
+            client_host_rules["client_host"]
+        )
 
         causal_chain.append({
             "step": "Client host health validated",
