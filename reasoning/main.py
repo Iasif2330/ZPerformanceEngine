@@ -127,11 +127,19 @@ def main():
         kv("Healthy", host_validation["healthy"])
         kv("Fail Fast", host_validation["fail_fast"])
 
+        print("\n  Collected Metrics:", flush=True)
+        for category, metrics in host_telemetry.items():
+            if isinstance(metrics, dict):
+                for k, v in metrics.items():
+                    evidence(f"{category}.{k}", v)
+
         if host_validation["violations"]:
+            print("\n  Rule Violations:", flush=True)
             for v in host_validation["violations"]:
-                evidence(
-                    v["metric"],
-                    f"{v['observed']} (threshold {v['threshold']})"
+                print(
+                    f"     ✖ {v['metric']} = {v['observed']} "
+                    f"(allowed {v['threshold']})",
+                    flush=True
                 )
 
         causal_chain.append({
