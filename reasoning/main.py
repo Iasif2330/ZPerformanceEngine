@@ -416,7 +416,7 @@ def main():
 
     anomaly_result = AnomalyDetector(client_metrics_rules).detect(
         current=client_metrics,
-        baseline=(baseline["metrics"] if baseline is not None else None)
+        baseline=baseline
     )
 
     # Expose baseline meta to anomaly result for downstream reporting
