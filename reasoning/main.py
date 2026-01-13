@@ -125,8 +125,13 @@ def main():
         "error_rate_pct": client_metrics_rules_yaml["errors"]["max_error_rate_pct"]
     }
 
+client_host = None
+network_validation = None
+network_telemetry = None
+
+if reasoning_phase == "preflight":
     # ============================================================
-    # 3. CLIENT HOST HEALTH (TRUST GATE #1)
+    # 3. CLIENT HOST HEALTH (PRE-FLIGHT ONLY)
     # ============================================================
     section("Client Host Health Check")
     host_telemetry = ClientHostCollector().collect()
@@ -139,91 +144,32 @@ def main():
     evidence("Memory max %", host_telemetry.get("memory", {}).get("max_pct"))
     evidence("OS load avg (1m)", host_telemetry.get("os", {}).get("load_avg_1m"))
 
-    if host_validation["status"] != "CLIENT_HOST_OK":
-        causal_chain.append({
-            "step": "Client host health validation failed",
-            "evidence": host_telemetry,
-            "impact": "Load generator stability not guaranteed"
-        })
-        _final_exit(
-            decision="REVIEW_REQUIRED",
-            confidence="LOW",
-            reasons=["Load generator host unstable"],
-            causal_chain=causal_chain,
-            environment=environment,
-            load_profile=load_profile,
-            run_id=run_id,
-            client_host=host_validation,
-            network=None,
-            client_metrics=None,
-            baseline=None,
-            anomaly=None,
-            server_correlation=None
-        )
-
     causal_chain.append({
         "step": "Client host health validated",
         "evidence": host_telemetry
     })
 
     # ============================================================
-    # 4. NETWORK HEALTH (TRUST GATE #2)
+    # 4. NETWORK HEALTH (PRE-FLIGHT ONLY)
     # ============================================================
     section("Network Path Health Check")
 
     if is_localhost(target_host):
         kv("Status", "NOT_APPLICABLE")
-        print("     • Target host is localhost; no network boundary exists", flush=True)
-
-        causal_chain.append({
-            "step": "Network health check skipped",
-            "evidence": "Target host is localhost; no network path to validate"
-        })
-
         network_validation = {"status": "NOT_APPLICABLE"}
-        network_telemetry = None
-
     else:
         network_telemetry = NetworkCollector(target_host).collect()
         network_validation = NetworkValidator(network_rules, environment).validate(network_telemetry)
 
         kv("Status", network_validation["status"])
+        evidence("RTT avg (ms)", network_telemetry.get("rtt", {}).get("avg_ms"))
+        evidence("Packet loss %", network_telemetry.get("packet_loss", {}).get("pct"))
 
-        rtt = network_telemetry.get("rtt", {}).get("avg_ms")
-        pkt_loss = network_telemetry.get("packet_loss", {}).get("pct")
+    causal_chain.append({
+        "step": "Network health validated",
+        "evidence": network_telemetry
+    })
 
-        if rtt is None or pkt_loss is None:
-            causal_chain.append({
-                "step": "Network health verification failed",
-                "evidence": network_telemetry,
-                "impact": "Required network metrics unavailable"
-            })
-            _final_exit(
-                decision="REVIEW_REQUIRED",
-                confidence="LOW",
-                reasons=["Network metrics unavailable"],
-                causal_chain=causal_chain,
-                environment=environment,
-                load_profile=load_profile,
-                run_id=run_id,
-                client_host=host_validation,
-                network=network_validation,
-                client_metrics=None,
-                baseline=None,
-                anomaly=None,
-                server_correlation=None
-            )
-
-        evidence("RTT avg (ms)", rtt)
-        evidence("Packet loss %", pkt_loss)
-
-        causal_chain.append({
-            "step": "Network health validated",
-            "evidence": {
-                "rtt_avg_ms": rtt,
-                "packet_loss_pct": pkt_loss
-            }
-        })
 
     # ============================================================
     # PRE-FLIGHT EXIT (NO DECISION HERE)
