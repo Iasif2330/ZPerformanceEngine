@@ -108,21 +108,51 @@ NETWORK_EFFECTS = {
 def print_client_host_metrics(host_telemetry, host_validation, rules):
     print("\n  Metrics vs Rules:", flush=True)
 
-    rule_map = {}
-    if "cpu" in rules:
-        rule_map["cpu.avg_pct"] = rules["cpu"]["avg_pct_max"]
-        rule_map["cpu.max_pct"] = rules["cpu"]["max_pct_max"]
-    if "memory" in rules:
-        rule_map["memory.avg_pct"] = rules["memory"]["avg_pct_max"]
-        rule_map["memory.max_pct"] = rules["memory"]["max_pct_max"]
-        rule_map["memory.swap_used_pct"] = rules["memory"]["swap_used_pct_max"]
-    if "disk" in rules:
-        rule_map["disk.iowait_avg_pct"] = rules["disk"]["iowait_avg_pct_max"]
-        rule_map["disk.iowait_max_pct"] = rules["disk"]["iowait_max_pct_max"]
-    if "network" in rules:
-        rule_map["network.tx_bytes_per_sec"] = rules["network"]["tx_bytes_per_sec_min"]
-    if "os" in rules:
-        rule_map["os.load_avg_per_core"] = rules["os"]["load_avg_per_core_max"]
+    # Build observed metrics FIRST (facts)
+    observed = {
+        "cpu.avg_pct": host_telemetry["cpu"]["avg_pct"],
+        "cpu.max_pct": host_telemetry["cpu"]["max_pct"],
+        "memory.avg_pct": host_telemetry["memory"]["avg_pct"],
+        "memory.max_pct": host_telemetry["memory"]["max_pct"],
+        "memory.swap_used_pct": host_telemetry["memory"]["swap_used_pct"],
+        "disk.iowait_avg_pct": host_telemetry["disk"]["iowait_avg_pct"],
+        "disk.iowait_max_pct": host_telemetry["disk"]["iowait_max_pct"],
+        "network.tx_bytes_per_sec": host_telemetry["network"]["tx_bytes_per_sec"],
+    }
+
+    cores = host_telemetry["cpu"]["cores"]
+    observed["os.load_avg_per_core"] = round(
+        host_telemetry["os"]["load_avg_1m"] / cores, 2
+    )
+
+    # Build rule lookup (may be partial)
+    rule_lookup = {
+        "cpu.avg_pct": rules.get("cpu", {}).get("avg_pct_max"),
+        "cpu.max_pct": rules.get("cpu", {}).get("max_pct_max"),
+        "memory.avg_pct": rules.get("memory", {}).get("avg_pct_max"),
+        "memory.max_pct": rules.get("memory", {}).get("max_pct_max"),
+        "memory.swap_used_pct": rules.get("memory", {}).get("swap_used_pct_max"),
+        "disk.iowait_avg_pct": rules.get("disk", {}).get("iowait_avg_pct_max"),
+        "disk.iowait_max_pct": rules.get("disk", {}).get("iowait_max_pct_max"),
+        "network.tx_bytes_per_sec": rules.get("network", {}).get("tx_bytes_per_sec_min"),
+        "os.load_avg_per_core": rules.get("os", {}).get("load_avg_per_core_max"),
+    }
+
+    violated = {v["metric"] for v in host_validation["violations"]}
+
+    for metric, value in observed.items():
+        rule = rule_lookup.get(metric)
+
+        if rule is None:
+            print(f"     • {metric} = {value} (no rule)", flush=True)
+            continue
+
+        symbol = "✖" if metric in violated else "✔"
+        print(f"     {symbol} {metric} = {value} (allowed < {rule})", flush=True)
+
+        effect = CLIENT_HOST_EFFECTS.get(metric)
+        if effect:
+            print(f"        ↳ Effect: {effect}", flush=True)
 
 def explain_server_states(server_metrics, server_states, server_rules):
     """
