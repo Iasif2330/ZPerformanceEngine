@@ -534,18 +534,6 @@ def main():
 
     server_correlation = Correlator().correlate(server_metrics, None, server_rules)
     kv("Server correlation status", server_correlation["status"])
-    section("Explanation")
-    explanations = ExplanationEngine(EXPLANATION_RULES).explain(
-        anomaly_result,
-        server_correlation
-    )
-    for line in explanations:
-        print(f"  • {line}", flush=True)
-    causal_chain.append({
-        "step": "Explanation derived",
-        "evidence": explanations
-    })
-    
     states = server_correlation.get("states", {})
     state_explanations = explain_server_states(
         server_metrics,
@@ -557,6 +545,17 @@ def main():
         symbol = "✔" if value else "✖"
         print(f"     {symbol} {state}: {value}", flush=True)
         print(f"        ↳ {state_explanations[state]}", flush=True)
+    section("Explanation")
+    explanations = ExplanationEngine(EXPLANATION_RULES).explain(
+        anomaly_result,
+        server_correlation
+    )
+    for line in explanations:
+        print(f"  • {line}", flush=True)
+    causal_chain.append({
+        "step": "Explanation derived",
+        "evidence": explanations
+    })
 
     causal_chain.append({
         "step": "Server metrics correlated",
