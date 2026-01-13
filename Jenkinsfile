@@ -65,8 +65,6 @@ pipeline {
                     // ============================
                     // Resolve ALL APIs from apis.yaml
                     // ============================
-                    import org.yaml.snakeyaml.Yaml
-
                     def allApis = []
                     def apisYamlFile = new File("config/apis.yaml")
 
@@ -74,14 +72,13 @@ pipeline {
                         error "config/apis.yaml not found"
                     }
 
-                    def yaml = new Yaml()
+                    def yaml = new org.yaml.snakeyaml.Yaml()
                     def apisData = yaml.load(apisYamlFile.text)
 
                     if (!(apisData instanceof Map) || !(apisData.apis instanceof Map)) {
                         error "Invalid structure in config/apis.yaml (expected: apis: { ... })"
                     }
 
-                    // LinkedHashMap preserves YAML order
                     allApis = apisData.apis.keySet().collect { it.toString() }
 
                     if (allApis.isEmpty()) {
@@ -89,7 +86,7 @@ pipeline {
                     }
 
                     // ============================
-                    // Parse SELECTED_APIS (if any)
+                    // Parse SELECTED_APIS
                     // ============================
                     def apisValueRaw = params.SELECTED_APIS ?: ""
                     def apisValue = []
@@ -126,12 +123,12 @@ pipeline {
                         cliArgs += "-Dapis=${nonLoginApis.join(',')} "
                     }
                     else {
-                        // 🔓 AUTO-TRIGGER: no UI selection → ALL APIs from YAML
+                        // No UI selection → ALL APIs from YAML
                         cliArgs += "-Dapis=${allApis.join(',')} "
                     }
 
                     // ============================
-                    // Resolve TARGET_HOST from environments.yaml (sandbox-safe)
+                    // Resolve TARGET_HOST
                     // ============================
                     def host = sh(
                         script: """
@@ -145,7 +142,7 @@ pipeline {
                     ).trim()
 
                     if (!host) {
-                        error "Failed to resolve host for ENVIRONMENT '${envValue}' from config/environments.yaml"
+                        error "Failed to resolve host for ENVIRONMENT '${envValue}'"
                     }
 
                     env.TARGET_HOST  = host
@@ -161,7 +158,6 @@ pipeline {
                 }
             }
         }
-
         /* ============================
          * STAGE 4 — Generate Dynamic JMX
          * ============================ */
