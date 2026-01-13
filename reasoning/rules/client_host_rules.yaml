@@ -1,14 +1,47 @@
 client_host:
+
   cpu:
+    # Sustained average CPU beyond this means
+    # JMeter cannot reliably generate load
     avg_pct_max: 75
+
+    # Instantaneous spikes beyond this indicate
+    # scheduler contention / saturation
     max_pct_max: 90
+
 
   memory:
+    # High average memory indicates pressure
     avg_pct_max: 80
+
+    # Near exhaustion = risk of swapping / GC storms
     max_pct_max: 90
 
+    # ANY swap usage invalidates the test
+    swap_used_pct_max: 0
+
+
+  disk:
+    # IO wait means the host is stalled on disk
+    # (JTL writes, logging, FS syncs)
+    iowait_avg_pct_max: 5
+    iowait_max_pct_max: 10
+
+
+  network:
+    # These are sanity guards, not perf tuning knobs
+    # If TX is zero, load is not being generated
+    tx_bytes_per_sec_min: 1
+
+
   os:
+    # Load average normalized per CPU core
+    # >1 means runnable threads are waiting
     load_avg_per_core_max: 1.5
 
+
 behavior:
+  # If ANY rule is violated:
+  #  - stop the test immediately
+  #  - mark run as INVALID (not FAIL)
   fail_fast: true

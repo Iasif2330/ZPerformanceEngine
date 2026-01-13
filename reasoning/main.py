@@ -124,17 +124,40 @@ def main():
         host_telemetry = ClientHostCollector().collect()
         host_validation = ClientHostValidator(client_host_rules).validate(host_telemetry)
 
-        kv("Status", host_validation["status"])
-        evidence("CPU avg %", host_telemetry.get("cpu", {}).get("avg_pct"))
-        evidence("CPU max %", host_telemetry.get("cpu", {}).get("max_pct"))
-        evidence("Memory avg %", host_telemetry.get("memory", {}).get("avg_pct"))
-        evidence("Memory max %", host_telemetry.get("memory", {}).get("max_pct"))
-        evidence("OS load avg (1m)", host_telemetry.get("os", {}).get("load_avg_1m"))
+        kv("Healthy", host_validation["healthy"])
+        kv("Fail Fast", host_validation["fail_fast"])
+
+        if host_validation["violations"]:
+            for v in host_validation["violations"]:
+                evidence(
+                    v["metric"],
+                    f"{v['observed']} (threshold {v['threshold']})"
+                )
 
         causal_chain.append({
             "step": "Client host health validated",
             "evidence": host_telemetry
         })
+
+        if host_validation["fail_fast"]:
+            _final_exit(
+                decision="INVALID",
+                confidence="HIGH",
+                reasons=["Client host failed pre-flight health checks"],
+                causal_chain=causal_chain + [{
+                    "step": "Client host pre-flight fail-fast",
+                    "evidence": host_validation
+                }],
+                environment=environment,
+                load_profile=load_profile,
+                run_id=run_id,
+                client_host=host_validation,
+                network=None,
+                client_metrics=None,
+                baseline=None,
+                anomaly=None,
+                server_correlation=None
+            )
 
         section("Network Health")
         if is_localhost(target_host):

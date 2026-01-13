@@ -1,62 +1,105 @@
 # reasoning/validators/client_host_validator.py
 
-from typing import Dict
+from typing import Dict, List
 
 
 class ClientHostValidator:
     """
     Validates load-generator host health using collected telemetry
     and predefined client host rules.
+
+    This validator:
+    - Applies hard fail-fast invariants
+    - Produces violations, not decisions
+    - Does NOT interpret performance impact
     """
 
     def __init__(self, rules: Dict):
         self.rules = rules["client_host"]
+        self.fail_fast = rules.get("behavior", {}).get("fail_fast", False)
 
     def validate(self, telemetry: Dict) -> Dict:
-        issues = []
+        violations: List[Dict] = []
 
         # ---- CPU checks ----
         cpu = telemetry["cpu"]
-        if cpu["avg_pct"] >= self.rules["cpu"]["avg_pct_max"]:
-            issues.append(
-                f"CPU avg {cpu['avg_pct']}% exceeds "
-                f"{self.rules['cpu']['avg_pct_max']}%"
-            )
-
-        if cpu["max_pct"] >= self.rules["cpu"]["max_pct_max"]:
-            issues.append(
-                f"CPU max {cpu['max_pct']}% exceeds "
-                f"{self.rules['cpu']['max_pct_max']}%"
-            )
+        self._check_max(
+            violations, "cpu.avg_pct", cpu["avg_pct"],
+            self.rules["cpu"]["avg_pct_max"]
+        )
+        self._check_max(
+            violations, "cpu.max_pct", cpu["max_pct"],
+            self.rules["cpu"]["max_pct_max"]
+        )
 
         # ---- Memory checks ----
         mem = telemetry["memory"]
-        if mem["avg_pct"] >= self.rules["memory"]["avg_pct_max"]:
-            issues.append(
-                f"Memory avg {mem['avg_pct']}% exceeds "
-                f"{self.rules['memory']['avg_pct_max']}%"
+        self._check_max(
+            violations, "memory.avg_pct", mem["avg_pct"],
+            self.rules["memory"]["avg_pct_max"]
+        )
+        self._check_max(
+            violations, "memory.max_pct", mem["max_pct"],
+            self.rules["memory"]["max_pct_max"]
+        )
+
+        # Swap is binary
+        if "swap_used_pct_max" in self.rules["memory"]:
+            self._check_max(
+                violations, "memory.swap_used_pct", mem["swap_used_pct"],
+                self.rules["memory"]["swap_used_pct_max"]
             )
 
-        if mem["max_pct"] >= self.rules["memory"]["max_pct_max"]:
-            issues.append(
-                f"Memory max {mem['max_pct']}% exceeds "
-                f"{self.rules['memory']['max_pct_max']}%"
+        # ---- Disk IO checks ----
+        disk = telemetry.get("disk", {})
+        if disk:
+            self._check_max(
+                violations, "disk.iowait_avg_pct",
+                disk["iowait_avg_pct"],
+                self.rules["disk"]["iowait_avg_pct_max"]
             )
+            self._check_max(
+                violations, "disk.iowait_max_pct",
+                disk["iowait_max_pct"],
+                self.rules["disk"]["iowait_max_pct_max"]
+            )
+
+        # ---- Network checks ----
+        network = telemetry.get("network", {})
+        if network:
+            min_tx = self.rules["network"]["tx_bytes_per_sec_min"]
+            if network["tx_bytes_per_sec"] < min_tx:
+                violations.append({
+                    "metric": "network.tx_bytes_per_sec",
+                    "observed": network["tx_bytes_per_sec"],
+                    "threshold": f">= {min_tx}",
+                    "rule": "tx_bytes_per_sec_min"
+                })
 
         # ---- Load average checks ----
         os_stats = telemetry["os"]
         cores = cpu["cores"]
         load_per_core = os_stats["load_avg_1m"] / cores
 
-        if load_per_core >= self.rules["os"]["load_avg_per_core_max"]:
-            issues.append(
-                f"Load avg per core {round(load_per_core, 2)} exceeds "
-                f"{self.rules['os']['load_avg_per_core_max']}"
-            )
-
-        status = "CLIENT_HOST_OK" if not issues else "CLIENT_HOST_UNSTABLE"
+        self._check_max(
+            violations, "os.load_avg_per_core",
+            round(load_per_core, 2),
+            self.rules["os"]["load_avg_per_core_max"]
+        )
 
         return {
-            "status": status,
-            "issues": issues
+            "component": "client_host",
+            "violations": violations,
+            "healthy": len(violations) == 0,
+            "fail_fast": self.fail_fast and len(violations) > 0
         }
+
+    @staticmethod
+    def _check_max(violations, metric, observed, max_allowed):
+        if observed >= max_allowed:
+            violations.append({
+                "metric": metric,
+                "observed": observed,
+                "threshold": f"< {max_allowed}",
+                "rule": "max"
+            })
