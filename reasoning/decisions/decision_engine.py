@@ -1,17 +1,23 @@
-# reasoning/decisions/decision_engine.py
-
 from typing import Dict, List
 
 
 class DecisionEngine:
     """
     Final CI gating decision engine.
-    Uses client anomaly + server correlation + auto-accept rules.
+
+    Decisions are based on:
+    - Client-side anomaly detection
+    - Server-side state correlation (NOT raw metrics)
+    - Explicit auto-accept rules
+
+    This engine does NOT:
+    - Guess root cause
+    - Perform metric-to-metric mapping
     """
 
     def __init__(self, rules: Dict):
         self.rules = rules["auto_accept"]
-        self.confidence_rules = rules["confidence"]
+        self.confidence_rules = rules.get("confidence", {})
 
     def decide(
         self,
@@ -23,19 +29,30 @@ class DecisionEngine:
 
         status = client_anomaly.get("status")
         anomalies = client_anomaly.get("anomalies", {})
+        baseline_meta = client_anomaly.get("baseline_meta")
 
         # --------------------------------------------------
-        # 1. No baseline handling
+        # 1. No baseline / learning phase
         # --------------------------------------------------
         if status == "NO_BASELINE":
-            if not self.rules["allow_no_baseline"]:
+            if not self.rules.get("allow_no_baseline", False):
                 return self._review(
-                    "No baseline available",
+                    "No baseline available for client metrics",
                     confidence="LOW"
                 )
 
+            return self._accept(
+                "Baseline learning phase (no anomalies enforced)",
+                confidence="LOW"
+            )
+
+        if status == "WEAK_BASELINE":
+            reasons.append(
+                f"Weak baseline (samples={baseline_meta.get('sample_count')})"
+            )
+
         # --------------------------------------------------
-        # 2. No anomaly → auto accept
+        # 2. No client anomaly → auto accept
         # --------------------------------------------------
         if status == "OK":
             return self._accept(
@@ -44,9 +61,9 @@ class DecisionEngine:
             )
 
         # --------------------------------------------------
-        # 3. Client anomaly count check
+        # 3. Too many client anomalies
         # --------------------------------------------------
-        if len(anomalies) > self.rules["max_client_anomalies"]:
+        if len(anomalies) > self.rules.get("max_client_anomalies", 1):
             return self._review(
                 "Multiple client-side anomalies detected",
                 confidence="MEDIUM"
@@ -55,7 +72,7 @@ class DecisionEngine:
         # --------------------------------------------------
         # 4. Server correlation required?
         # --------------------------------------------------
-        if self.rules["require_server_confirmation"]:
+        if self.rules.get("require_server_confirmation", True):
 
             if server_correlation is None:
                 return self._review(
@@ -63,40 +80,83 @@ class DecisionEngine:
                     confidence="LOW"
                 )
 
-            if server_correlation["status"] != "CONFIRMED":
+            if server_correlation.get("status") != "CONFIRMED":
                 return self._review(
                     "Server metrics did not corroborate client anomaly",
                     confidence="MEDIUM"
                 )
 
         # --------------------------------------------------
-        # 5. Server signal count
+        # 5. Interpret anomalies using SERVER STATES
         # --------------------------------------------------
-        server_signals = server_correlation.get("signals", [])
+        states = server_correlation.get("states", {}) if server_correlation else {}
 
-        if len(server_signals) > self.rules["max_server_signals"]:
-            return self._review(
-                "Multiple server-side signals detected",
-                confidence="HIGH"
-            )
+        server_healthy = states.get("server_healthy", False)
+        server_saturated = states.get("server_saturated", False)
+        server_slow = states.get("server_slow", False)
+        server_erroring = states.get("server_erroring", False)
 
-        # --------------------------------------------------
-        # 6. Severity check
-        # --------------------------------------------------
-        severe_limit = self.rules["severe_multiplier"]
+        # ---- Error-rate anomaly handling ----
+        if "error_rate" in anomalies:
 
-        for sig in server_signals:
-            if sig["severity"] == "SEVERE":
+            if server_healthy:
                 return self._review(
-                    f"Severe server deviation detected: {sig['metric']}",
+                    "High client error rate observed while server capacity and latency are healthy",
                     confidence="HIGH"
                 )
 
+            if server_erroring:
+                return self._review(
+                    "Client errors corroborated by server-side errors",
+                    confidence="HIGH"
+                )
+
+        # ---- Latency anomaly handling ----
+        latency_anomalies = [
+            k for k in anomalies.keys()
+            if k.startswith("p95_latency") or k.startswith("p99_latency")
+        ]
+
+        if latency_anomalies:
+
+            if server_saturated:
+                return self._review(
+                    "Client latency regression correlated with server saturation",
+                    confidence="HIGH"
+                )
+
+            if server_slow:
+                return self._review(
+                    "Client latency regression correlated with server-side latency",
+                    confidence="HIGH"
+                )
+
+            if server_healthy:
+                return self._review(
+                    "Client latency regression observed while server metrics remain healthy",
+                    confidence="MEDIUM"
+                )
+
+        # ---- Throughput anomaly handling ----
+        if "throughput" in anomalies:
+
+            if server_saturated:
+                return self._review(
+                    "Throughput drop correlated with server resource saturation",
+                    confidence="HIGH"
+                )
+
+            if server_healthy:
+                return self._review(
+                    "Throughput drop observed while server capacity is healthy",
+                    confidence="MEDIUM"
+                )
+
         # --------------------------------------------------
-        # 7. Auto-accept
+        # 6. Default conservative decision
         # --------------------------------------------------
-        return self._accept(
-            "Single client anomaly corroborated by single server signal",
+        return self._review(
+            "Client anomaly detected with inconclusive server correlation",
             confidence="MEDIUM"
         )
 

@@ -429,13 +429,21 @@ def main():
     if anomaly_result.get("anomalies"):
         print("\n  Detected Anomalies:", flush=True)
         for name, details in anomaly_result["anomalies"].items():
-            print(
-                f"     ✖ {name}: "
-                f"current={details.get('current')} "
-                f"(baseline={details.get('baseline')}, "
-                f"threshold={details.get('threshold_pct')}%)",
-                flush=True
-            )
+            if details.get("type") == "absolute":
+                print(
+                    f"     ✖ {details['metric']}: "
+                    f"current={details['current']}% "
+                    f"(allowed ≤ {details['threshold_pct']}%)",
+                    flush=True
+                )
+    else:
+        print(
+            f"     ✖ {details['metric']}: "
+            f"current={details['current']} "
+            f"(baseline={details['baseline']}, "
+            f"threshold={details['threshold_pct']}%)",
+            flush=True
+        )
 
     baseline_store.save_run(run_id, client_metrics)
 
@@ -455,11 +463,20 @@ def main():
         end_ts
     )
 
+    print("\n  Server Metrics (aggregated over anomaly window):", flush=True)
     for s in server_metrics.get("signals", []):
-        evidence(s["metric"], s["current"])
+        evidence(
+            f"{s['metric']} ({s['aggregation']})",
+            s["current"]
+        )
 
     server_correlation = Correlator().correlate(server_metrics, None, server_rules)
     kv("Server correlation status", server_correlation["status"])
+    states = server_correlation.get("states", {})
+    print("\n  Server States:", flush=True)
+    for state, value in states.items():
+        symbol = "✔" if value else "✖"
+        print(f"     {symbol} {state}: {value}", flush=True)
 
     causal_chain.append({
         "step": "Server metrics correlated",
