@@ -222,8 +222,11 @@ def explain_server_states(server_metrics, server_states, server_rules):
     cpu = metrics.get("cpu")
     threads = metrics.get("threads")
 
-    cpu_limit = rules.get("cpu", {}).get("minor_abs", 80)
+    cpu_limit = rules["cpu"]["minor_abs"]
     thread_limit = rules["threads"]["minor_abs"]
+
+    cpu_ok = cpu < cpu_limit
+    threads_ok = threads < thread_limit
 
     if server_states.get("server_saturated"):
         explanations["server_saturated"] = (
@@ -232,13 +235,15 @@ def explain_server_states(server_metrics, server_states, server_rules):
         )
     else:
         explanations["server_saturated"] = (
-            f"CPU max {cpu}% < {cpu_limit}%, "
-            f"threads max {threads} < {thread_limit}"
+            f"CPU max {cpu}% {'<' if cpu_ok else '≥'} {cpu_limit}%, "
+            f"threads max {threads} {'<' if threads_ok else '≥'} {thread_limit}"
         )
 
     # ---- server_slow ----
     lat = metrics.get("httplatp95")
-    lat_limit = rules.get("httplatp95", {}).get("minor_abs", 500)
+    lat_limit = rules["httplatp95"]["minor_abs"]
+
+    lat_ok = lat < lat_limit
 
     if server_states.get("server_slow"):
         explanations["server_slow"] = (
@@ -246,7 +251,7 @@ def explain_server_states(server_metrics, server_states, server_rules):
         )
     else:
         explanations["server_slow"] = (
-            f"Server p95 latency {lat} ms < {lat_limit} ms"
+            f"Server p95 latency {lat} ms {'<' if lat_ok else '≥'} {lat_limit} ms"
         )
 
     # ---- server_erroring ----
@@ -254,7 +259,7 @@ def explain_server_states(server_metrics, server_states, server_rules):
 
     if server_states.get("server_erroring"):
         explanations["server_erroring"] = (
-            f"Server returned 5xx errors"
+            "Server returned 5xx errors"
         )
     else:
         explanations["server_erroring"] = (
