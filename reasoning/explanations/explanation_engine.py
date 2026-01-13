@@ -137,6 +137,7 @@ class ExplanationEngine:
                 # ERROR-DOMINANT rules should short-circuit
                 if facts.get("has_errors"):
                     break
+
         # Fallback (should rarely happen)
         if not explanation:
             explanation.append(
@@ -160,15 +161,20 @@ class ExplanationEngine:
         states = server_correlation.get("states", {})
 
         return {
-            # ---- Client facts ----
+            # ---- Client facts (FIXED: inspect anomaly *values*, not keys) ----
             "has_errors": any(
-                k.endswith("error_rate_pct") for k in anomalies
+                v.get("metric", "").endswith("error_rate_pct")
+                for v in anomalies.values()
             ),
+
             "has_latency": any(
-                "latency" in k for k in anomalies
+                "latency" in v.get("metric", "")
+                for v in anomalies.values()
             ),
+
             "has_throughput_drop": any(
-                "throughput" in k for k in anomalies
+                "throughput" in v.get("metric", "")
+                for v in anomalies.values()
             ),
 
             # ---- Server facts ----
