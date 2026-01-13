@@ -54,6 +54,46 @@ def evidence(label: str, value):
         print(f"     • {label}: {value}", flush=True)
 
 
+# ---------------- Metric Effects ----------------
+CLIENT_HOST_EFFECTS = {
+    "cpu.avg_pct": (
+        "High CPU usage can throttle load generator threads, "
+        "reducing the actual load applied."
+    ),
+    "cpu.max_pct": (
+        "CPU spikes can introduce timing jitter, "
+        "causing inconsistent request pacing."
+    ),
+    "memory.avg_pct": (
+        "High memory usage increases the risk of garbage collection pauses "
+        "during load generation."
+    ),
+    "memory.max_pct": (
+        "Near-exhausted memory can destabilize the load generator "
+        "and interrupt request flow."
+    ),
+    "memory.swap_used_pct": (
+        "Swap usage severely distorts timing accuracy "
+        "and invalidates load test results."
+    ),
+    "disk.iowait_avg_pct": (
+        "Disk waits can delay result logging "
+        "and block load generator threads."
+    ),
+    "disk.iowait_max_pct": (
+        "High IO wait can intermittently stall request execution."
+    ),
+    "network.tx_bytes_per_sec": (
+        "Low outbound traffic indicates the load generator "
+        "may not be sending the intended load."
+    ),
+    "os.load_avg_per_core": (
+        "High runnable load can delay thread scheduling "
+        "and reduce effective concurrency."
+    ),
+}
+
+
 def print_client_host_metrics(host_telemetry, host_validation, rules):
     print("\n  Metrics vs Rules:", flush=True)
 
@@ -107,6 +147,13 @@ def print_client_host_metrics(host_telemetry, host_validation, rules):
             f"     {symbol} {metric} = {value} {status}",
             flush=True
         )
+
+        effect = CLIENT_HOST_EFFECTS.get(metric)
+        if effect:
+            print(
+                f"        ↳ Effect: {effect}",
+                flush=True
+            )
 
 
 def is_localhost(host: str) -> bool:
