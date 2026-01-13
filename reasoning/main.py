@@ -120,6 +120,66 @@ def print_client_host_metrics(host_telemetry, host_validation, rules):
         "os.load_avg_per_core": rules["os"]["load_avg_per_core_max"],
     }
 
+def explain_server_states(server_metrics, server_states, server_rules):
+    """
+    Generate one-line, data-backed explanations for each server state.
+    """
+
+    # Build metric lookup
+    metrics = {
+        s["metric"]: s["current"]
+        for s in server_metrics.get("signals", [])
+    }
+
+    rules = server_rules.get("server_rules", {})
+
+    explanations = {}
+
+    # ---- server_saturated ----
+    cpu = metrics.get("cpu")
+    threads = metrics.get("threads")
+
+    cpu_limit = rules.get("cpu", {}).get("minor_abs", 80)
+    thread_limit = rules.get("threads", {}).get("minor_abs", 200)
+
+    explanations["server_saturated"] = (
+        f"CPU max {cpu}% < {cpu_limit}%, threads max {threads} < {thread_limit}"
+        if not server_states.get("server_saturated")
+        else
+        f"CPU or threads exceeded saturation thresholds"
+    )
+
+    # ---- server_slow ----
+    lat = metrics.get("httplatp95")
+    lat_limit = rules.get("httplatp95", {}).get("minor_abs", 500)
+
+    explanations["server_slow"] = (
+        f"Server p95 latency {lat} ms < {lat_limit} ms"
+        if not server_states.get("server_slow")
+        else
+        f"Server p95 latency exceeded {lat_limit} ms"
+    )
+
+    # ---- server_erroring ----
+    err = metrics.get("http5xx")
+
+    explanations["server_erroring"] = (
+        f"Server 5xx rate {err} = 0"
+        if not server_states.get("server_erroring")
+        else
+        f"Server returned 5xx errors"
+    )
+
+    # ---- server_healthy ----
+    explanations["server_healthy"] = (
+        "No saturation, slowness, or server errors observed during anomaly window"
+        if server_states.get("server_healthy")
+        else
+        "One or more server stress conditions detected"
+    )
+
+    return explanations
+
     # Build observed values
     observed = {
         "cpu.avg_pct": host_telemetry["cpu"]["avg_pct"],
@@ -487,10 +547,16 @@ def main():
     })
     
     states = server_correlation.get("states", {})
+    state_explanations = explain_server_states(
+        server_metrics,
+        states,
+        server_rules
+    )
     print("\n  Server States:", flush=True)
     for state, value in states.items():
         symbol = "✔" if value else "✖"
         print(f"     {symbol} {state}: {value}", flush=True)
+        print(f"        ↳ {state_explanations[state]}", flush=True)
 
     causal_chain.append({
         "step": "Server metrics correlated",
