@@ -62,8 +62,38 @@ pipeline {
                             ? null
                             : durRaw.toInteger()
 
+                    // ============================
+                    // Resolve ALL APIs from apis.yaml
+                    // ============================
+                    import org.yaml.snakeyaml.Yaml
+
+                    def allApis = []
+                    def apisYamlFile = new File("config/apis.yaml")
+
+                    if (!apisYamlFile.exists()) {
+                        error "config/apis.yaml not found"
+                    }
+
+                    def yaml = new Yaml()
+                    def apisData = yaml.load(apisYamlFile.text)
+
+                    if (!(apisData instanceof Map) || !(apisData.apis instanceof Map)) {
+                        error "Invalid structure in config/apis.yaml (expected: apis: { ... })"
+                    }
+
+                    // LinkedHashMap preserves YAML order
+                    allApis = apisData.apis.keySet().collect { it.toString() }
+
+                    if (allApis.isEmpty()) {
+                        error "No APIs defined in config/apis.yaml"
+                    }
+
+                    // ============================
+                    // Parse SELECTED_APIS (if any)
+                    // ============================
                     def apisValueRaw = params.SELECTED_APIS ?: ""
                     def apisValue = []
+
                     if (apisValueRaw instanceof String && apisValueRaw.trim() != "") {
                         apisValue = apisValueRaw.split(",") as List
                     } else if (apisValueRaw instanceof List) {
@@ -76,14 +106,18 @@ pipeline {
                     def nonLoginApis      = apisValue.findAll { !it.equalsIgnoreCase("login") }
                     def onlyLoginSelected = loginSelected && nonLoginApis.isEmpty()
 
+                    // ============================
+                    // Build CLI Args
+                    // ============================
                     def cliArgs = ""
                     cliArgs += "-Denv=${envValue} "
                     cliArgs += "-Dprofile=${profileValue} "
                     cliArgs += "-DloopLogin=${loopVal} "
                     cliArgs += "-Ddebug=${debugVal} "
 
-                    if (durationVal != null)
+                    if (durationVal != null) {
                         cliArgs += "-Dduration=${durationVal} "
+                    }
 
                     if (onlyLoginSelected) {
                         cliArgs += "-Dapis=login "
@@ -92,8 +126,8 @@ pipeline {
                         cliArgs += "-Dapis=${nonLoginApis.join(',')} "
                     }
                     else {
-                        // 🔒 AUTO-TRIGGER DEFAULTS (NO UI SELECTION)
-                        cliArgs += "-Dapis=login,allfeeds,crimedata,riskintelligence,crimeevents,feedpreview "
+                        // 🔓 AUTO-TRIGGER: no UI selection → ALL APIs from YAML
+                        cliArgs += "-Dapis=${allApis.join(',')} "
                     }
 
                     // ============================
@@ -114,16 +148,16 @@ pipeline {
                         error "Failed to resolve host for ENVIRONMENT '${envValue}' from config/environments.yaml"
                     }
 
-                    env.TARGET_HOST = host
-
-                    echo """
-FINAL CLI ARGS
---------------
-${cliArgs}
-"""
-                    env.CLI_ARGS = cliArgs
+                    env.TARGET_HOST  = host
+                    env.CLI_ARGS    = cliArgs
                     env.ENVIRONMENT = envValue
                     env.LOAD_PROFILE = profileValue
+
+                    echo """
+        FINAL CLI ARGS
+        --------------
+        ${cliArgs}
+        """
                 }
             }
         }
