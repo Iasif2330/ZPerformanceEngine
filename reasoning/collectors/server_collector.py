@@ -88,40 +88,80 @@ class ServerCollector:
     # ------------------------------------------------------------
 
     def _build_queries(self, environment: str, service: str) -> List[Dict]:
+        """
+        Build PromQL queries scoped to:
+        - environment  -> Kubernetes namespace
+        - service      -> Kubernetes service name
+
+        IMPORTANT:
+        - All queries are explicitly scoped to avoid cross-service contamination.
+        - No cluster-wide aggregation.
+        """
+
         return [
             {
+                # --------------------------------------------------
                 # CPU usage percentage (0–100)
+                # --------------------------------------------------
                 "refId": "CPU",
                 "expr": (
-                    'sum(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) '
-                    '/ sum(container_spec_cpu_quota{container!="",pod!=""} '
-                    '/ container_spec_cpu_period{container!="",pod!=""}) * 100'
+                    f'sum(rate(container_cpu_usage_seconds_total{{'
+                    f'namespace="{environment}", container="{service}"'
+                    f'}}[5m])) '
+                    f'/ sum(container_spec_cpu_quota{{'
+                    f'namespace="{environment}", container="{service}"'
+                    f'}} '
+                    f'/ container_spec_cpu_period{{'
+                    f'namespace="{environment}", container="{service}"'
+                    f'}}) * 100'
                 ),
             },
             {
+                # --------------------------------------------------
                 # Memory usage percentage (0–100)
+                # --------------------------------------------------
                 "refId": "MEM",
                 "expr": (
-                    'sum(container_memory_working_set_bytes{container!="",pod!=""}) '
-                    '/ sum(container_spec_memory_limit_bytes{container!="",pod!=""}) * 100'
+                    f'sum(container_memory_working_set_bytes{{'
+                    f'namespace="{environment}", container="{service}"'
+                    f'}}) '
+                    f'/ sum(container_spec_memory_limit_bytes{{'
+                    f'namespace="{environment}", container="{service}"'
+                    f'}}) * 100'
                 ),
             },
             {
-                # JVM thread count
+                # --------------------------------------------------
+                # JVM thread count (service-scoped)
+                # --------------------------------------------------
                 "refId": "THREADS",
-                "expr": 'avg(jvm_threads_current)',
+                "expr": (
+                    f'avg(jvm_threads_current{{'
+                    f'namespace="{environment}", service="{service}"'
+                    f'}})'
+                ),
             },
             {
-                # HTTP 5xx error rate
+                # --------------------------------------------------
+                # HTTP 5xx error rate (service-scoped)
+                # --------------------------------------------------
                 "refId": "HTTP_5XX",
-                "expr": 'sum(rate(http_responseCodes_serverError_total[5m]))',
+                "expr": (
+                    f'sum(rate(http_responseCodes_serverError_total{{'
+                    f'namespace="{environment}", service="{service}"'
+                    f'}}[5m]))'
+                ),
             },
             {
-                # P95 latency in ms
+                # --------------------------------------------------
+                # HTTP P95 latency (service-scoped)
+                # --------------------------------------------------
                 "refId": "HTTP_LAT_P95",
                 "expr": (
-                    'histogram_quantile(0.95, '
-                    'sum(rate(service_latency_bucket[5m])) by (le))'
+                    f'histogram_quantile(0.95, '
+                    f'sum(rate(service_latency_bucket{{'
+                    f'namespace="{environment}", service="{service}"'
+                    f'}}[5m])) by (le))'
                 ),
             },
         ]
