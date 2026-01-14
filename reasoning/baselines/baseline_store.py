@@ -29,7 +29,7 @@ class BaselineStore:
         self.environment = environment
         self.load_profile = load_profile
 
-        self.storage_path = Path(policy["storage"]["path"])
+        self.storage_path = Path(policy["storage"]["path"]).resolve()
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
     # -------------------------
