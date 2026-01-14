@@ -225,7 +225,7 @@ def explain_server_states(server_metrics, server_states, server_rules):
     cpu_limit = rules["cpu"]["minor_abs"]
     thread_limit = rules["threads"]["minor_abs"]
 
-    pu_ok = cpu is not None and cpu < cpu_limit
+    cpu_ok = cpu is not None and cpu < cpu_limit
     threads_ok = threads is not None and threads < thread_limit
 
     if server_states.get("server_saturated"):
