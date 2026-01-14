@@ -2,12 +2,12 @@ baseline:
   type: rolling
 
   rolling:
-    window_size: 3          # MUST be >1 for stability
-    min_required: 2         # learning threshold
+    window_size: 2          # MUST be >1 for stability
+    min_required: 1         # learning threshold
     aggregation: median
 
     retention:
-      max_snapshots: 10     # retain more than window to absorb noise
+      max_snapshots: 3    # retain more than window to absorb noise
 
   snapshot:
     name: null
