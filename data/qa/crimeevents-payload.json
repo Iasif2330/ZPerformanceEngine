@@ -1,0 +1,52 @@
+{
+  "filters": [
+    {
+      "filterType": "GEO_SHAPE",
+      "values": [
+        [
+          -152.56962789318194,
+          44.12147377622455
+        ],
+        [
+          -152.56962789318194,
+          40.76507661187068
+        ],
+        [
+          -165.1546162197775,
+          40.76507661187068
+        ],
+        [
+          -165.1546162197775,
+          44.12147377622455
+        ],
+        [
+          -152.56962789318194,
+          44.12147377622455
+        ]
+      ],
+      "field": "shape",
+      "details": {
+        "geoShapeType": "POLYGON",
+        "relation": "INTERSECTS"
+      }
+    },
+    {
+      "filterType": "IN",
+      "values": [
+        "L5"
+      ],
+      "field": "type"
+    }
+  ],
+  "includeFields": [
+    "id",
+    "name",
+    "label"
+  ],
+  "pageInfo": {
+    "page": 0,
+    "size": 5000
+  },
+  "lookupType": "GEO_LEVEL",
+  "lookupRequestType": "SEARCH"
+}
