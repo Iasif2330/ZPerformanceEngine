@@ -9,7 +9,7 @@ pipeline {
         cron('0 2 * * *')
 
         // For testing only (uncomment temporarily if needed)
-        // cron('* * * * *')
+        cron('* * * * *')
     }
 
     environment {
