@@ -88,80 +88,40 @@ class ServerCollector:
     # ------------------------------------------------------------
 
     def _build_queries(self, environment: str, service: str) -> List[Dict]:
-        """
-        Build PromQL queries scoped to:
-        - environment  -> Kubernetes namespace
-        - service      -> Kubernetes service name
-
-        IMPORTANT:
-        - All queries are explicitly scoped to avoid cross-service contamination.
-        - No cluster-wide aggregation.
-        """
-
         return [
             {
-                # --------------------------------------------------
                 # CPU usage percentage (0–100)
-                # --------------------------------------------------
                 "refId": "CPU",
                 "expr": (
-                    f'sum(rate(container_cpu_usage_seconds_total{{'
-                    f'namespace="{environment}", container="{service}"'
-                    f'}}[5m])) '
-                    f'/ sum(container_spec_cpu_quota{{'
-                    f'namespace="{environment}", container="{service}"'
-                    f'}} '
-                    f'/ container_spec_cpu_period{{'
-                    f'namespace="{environment}", container="{service}"'
-                    f'}}) * 100'
+                    'sum(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) '
+                    '/ sum(container_spec_cpu_quota{container!="",pod!=""} '
+                    '/ container_spec_cpu_period{container!="",pod!=""}) * 100'
                 ),
             },
             {
-                # --------------------------------------------------
                 # Memory usage percentage (0–100)
-                # --------------------------------------------------
                 "refId": "MEM",
                 "expr": (
-                    f'sum(container_memory_working_set_bytes{{'
-                    f'namespace="{environment}", container="{service}"'
-                    f'}}) '
-                    f'/ sum(container_spec_memory_limit_bytes{{'
-                    f'namespace="{environment}", container="{service}"'
-                    f'}}) * 100'
+                    'sum(container_memory_working_set_bytes{container!="",pod!=""}) '
+                    '/ sum(container_spec_memory_limit_bytes{container!="",pod!=""}) * 100'
                 ),
             },
             {
-                # --------------------------------------------------
-                # JVM thread count (service-scoped)
-                # --------------------------------------------------
+                # JVM thread count
                 "refId": "THREADS",
-                "expr": (
-                    f'avg(jvm_threads_current{{'
-                    f'namespace="{environment}", service="{service}"'
-                    f'}})'
-                ),
+                "expr": 'avg(jvm_threads_current)',
             },
             {
-                # --------------------------------------------------
-                # HTTP 5xx error rate (service-scoped)
-                # --------------------------------------------------
+                # HTTP 5xx error rate
                 "refId": "HTTP_5XX",
-                "expr": (
-                    f'sum(rate(http_responseCodes_serverError_total{{'
-                    f'namespace="{environment}", service="{service}"'
-                    f'}}[5m]))'
-                ),
+                "expr": 'sum(rate(http_responseCodes_serverError_total[5m]))',
             },
             {
-                # --------------------------------------------------
-                # HTTP P95 latency (service-scoped)
-                # --------------------------------------------------
+                # P95 latency in ms
                 "refId": "HTTP_LAT_P95",
                 "expr": (
-                    f'histogram_quantile(0.95, '
-                    f'sum(rate(service_latency_bucket{{'
-                    f'namespace="{environment}", service="{service}"'
-                    f'}}[5m])) by (le))'
+                    'histogram_quantile(0.95, '
+                    'sum(rate(service_latency_bucket[5m])) by (le))'
                 ),
             },
         ]
