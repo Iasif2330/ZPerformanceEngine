@@ -166,7 +166,6 @@ class ServerCollector:
                     return {
                         "status": "unavailable",
                         "reason": f"Grafana/Prometheus returned {status}",
-                        "query": query,
                     }
                 raise
 
