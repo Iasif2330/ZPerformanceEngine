@@ -158,7 +158,17 @@ class ServerCollector:
                 params=params,
                 timeout=30,
             )
-            resp.raise_for_status()
+            try:
+                resp.raise_for_status()
+            except requests.HTTPError as e:
+                status = resp.status_code
+                if status >= 500:
+                    return {
+                        "status": "unavailable",
+                        "reason": f"Grafana/Prometheus returned {status}",
+                        "query": query,
+                    }
+                raise
 
             results[q["refId"]] = resp.json()
 
