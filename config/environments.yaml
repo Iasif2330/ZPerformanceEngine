@@ -8,6 +8,7 @@ qa:
     allfeeds: "data/qa/allfeeds-payload.json"
     crimedata: "data/qa/crimedata-payload.json"
     riskintelligence: "data/qa/riskintelligence-payload.json"
+    crimeevents: "data/qa/crimeevents-payload.json"
 
 autoprod:
   baseUrl: "https://autoprod.ontic.ai"
