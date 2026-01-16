@@ -1,26 +1,26 @@
 import groovy.xml.MarkupBuilder
 
 // Load SnakeYAML
-this.class.classLoader.addURL(new File("lib/snakeyaml.jar").toURI().toURL())
+this. class .classLoader.addURL(new File("lib/snakeyaml.jar").toURI().toURL())
 
 // Load YAML Loader
-GroovyClassLoader gcl = new GroovyClassLoader(this.class.classLoader)
+GroovyClassLoader gcl = new GroovyClassLoader(this. class .classLoader)
 def yamlClass = gcl.parseClass(new File("engine/loadYaml.groovy"))
 def YamlLoader = yamlClass.newInstance()
 
 // Load configs
-def envConfig        = YamlLoader.load("config/environments.yaml")
-def headersConfig    = YamlLoader.load("config/headers.yaml")
-def apiConfig        = YamlLoader.load("config/apis.yaml")
-def profileConfig    = YamlLoader.load("config/load-profile.yaml")
-def apiGroupsConfig  = YamlLoader.load("config/api-groups.yaml")
+def envConfig = YamlLoader.load("config/environments.yaml")
+def headersConfig = YamlLoader.load("config/headers.yaml")
+def apiConfig = YamlLoader.load("config/apis.yaml")
+def profileConfig = YamlLoader.load("config/load-profile.yaml")
+def apiGroupsConfig = YamlLoader.load("config/api-groups.yaml")
 
 // =========================
 // Load assertions config
 // =========================
-def assertionsConfig  = YamlLoader.load("config/assertions.yaml") ?: [:]
+def assertionsConfig = YamlLoader.load("config/assertions.yaml") ?: [:]
 def defaultAssertions = assertionsConfig.defaults ?: []
-def apiAssertionsMap  = assertionsConfig.apis ?: [:]
+def apiAssertionsMap = assertionsConfig.apis ?: [:]
 
 // ===================================================================
 // Resolve environment with structured summary
@@ -58,37 +58,34 @@ def envName = selectedEnv
 // =========================
 def universal = profileConfig["universal"] ?: [:]
 
-def yamlLoopLogin = (universal.containsKey("loopLogin")) ? universal.loopLogin : null
-def yamlDebug     = (universal.containsKey("debug"))     ? universal.debug     : null
-def yamlDuration  = (universal.containsKey("duration"))  ? universal.duration  : null
+def yamlLoopLogin = (universal.containsKey("loopLogin")) ? universal.loopLogin: null
+def yamlDebug = (universal.containsKey("debug")) ? universal.debug: null
+def yamlDuration = (universal.containsKey("duration")) ? universal.duration: null
 
 // =========================
 // Load CLI overrides
 // =========================
 def cliLoopLogin = System.getProperty("loopLogin")
-def cliDebug     = System.getProperty("debug")
-def cliDuration  = System.getProperty("duration")
+def cliDebug = System.getProperty("debug")
+def cliDuration = System.getProperty("duration")
 
 // =========================
 // Final merged values
 // Priority: CLI > YAML > Default
 // =========================
-def loopLogin =
-    (cliLoopLogin != null) ? cliLoopLogin.toBoolean() :
-    (yamlLoopLogin != null && yamlLoopLogin.toString().trim() != "") ? yamlLoopLogin.toBoolean() :
-    true   // default
+def loopLogin = (cliLoopLogin != null) ? cliLoopLogin.toBoolean(): 
+(yamlLoopLogin != null && yamlLoopLogin.toString().trim() != "") ? yamlLoopLogin.toBoolean(): 
+true   // default
 
-def debugMode =
-    (cliDebug != null) ? cliDebug.toBoolean() :
-    (yamlDebug != null && yamlDebug.toString().trim() != "") ? yamlDebug.toBoolean() :
-    false  // default
+def debugMode = (cliDebug != null) ? cliDebug.toBoolean(): 
+(yamlDebug != null && yamlDebug.toString().trim() != "") ? yamlDebug.toBoolean(): 
+false  // default
 
-def duration =
-    (cliDuration != null && cliDuration.toString().trim() != "")
-        ? cliDuration.toInteger()
-        : (yamlDuration != null && yamlDuration.toString().trim() != "")
-            ? yamlDuration.toInteger()
-            : 10000
+def duration = (cliDuration != null && cliDuration.toString().trim() != "")
+ ? cliDuration.toInteger()
+: (yamlDuration != null && yamlDuration.toString().trim() != "")
+ ? yamlDuration.toInteger()
+: 10000
 
 
 // ===================================================================
@@ -97,14 +94,16 @@ def duration =
 def cliProfile = System.getProperty("profile")
 def profileName = cliProfile ?: "baseline-minimal"
 
-def profile = profileConfig["profiles"].find { it.name == profileName }
+def profile = profileConfig["profiles"].find {
+    it.name == profileName
+}
 if (!profile) {
     throw new IllegalArgumentException("Profile '${profileName}' not found in load-profile.yaml")
 }
 
 // Extract profile-specific values
-def threads      = profile.threads
-def rampup       = profile.rampup
+def threads = profile.threads
+def rampup = profile.rampup
 def apiLoopCount = profile.apiLoopCount
 
 
@@ -122,22 +121,19 @@ println ""
 println "------- Universal / CLI Overrides -------"
 
 // loopLogin source
-def loopLoginSource =
-    (cliLoopLogin != null) ? "CLI override" :
-    (yamlLoopLogin != null && yamlLoopLogin.toString().trim() != "") ? "YAML universal" :
-    "DEFAULT (true)"
+def loopLoginSource = (cliLoopLogin != null) ? "CLI override": 
+(yamlLoopLogin != null && yamlLoopLogin.toString().trim() != "") ? "YAML universal": 
+"DEFAULT (true)"
 
 // debug source
-def debugSource =
-    (cliDebug != null) ? "CLI override" :
-    (yamlDebug != null && yamlDebug.toString().trim() != "") ? "YAML universal" :
-    "DEFAULT (false)"
+def debugSource = (cliDebug != null) ? "CLI override": 
+(yamlDebug != null && yamlDebug.toString().trim() != "") ? "YAML universal": 
+"DEFAULT (false)"
 
 // duration source
-def durationSource =
-    (cliDuration != null) ? "CLI override" :
-    (yamlDuration != null && yamlDuration.toString().trim() != "") ? "YAML universal" :
-    "DEFAULT (unlimited)"
+def durationSource = (cliDuration != null) ? "CLI override": 
+(yamlDuration != null && yamlDuration.toString().trim() != "") ? "YAML universal": 
+"DEFAULT (unlimited)"
 
 println "loopLogin                    : ${loopLogin}   (${loopLoginSource})"
 println "debugMode                    : ${debugMode}   (${debugSource})"
@@ -149,10 +145,10 @@ println ""
 def usersFile = new File("config/users/${envName}.csv").getAbsolutePath()
 
 // ===================================================================
-def baseUrl  = envConfig[envName].baseUrl
-def parsed   = baseUrl.replace("https://","").replace("http://","")
-def domain   = parsed.contains("/") ? parsed.substring(0, parsed.indexOf("/")) : parsed
-def basePath = parsed.contains("/") ? parsed.substring(parsed.indexOf("/")) : ""
+def baseUrl = envConfig[envName].baseUrl
+def parsed = baseUrl.replace("https://", "").replace("http://", "")
+def domain = parsed.contains("/") ? parsed.substring(0, parsed.indexOf("/")): parsed
+def basePath = parsed.contains("/") ? parsed.substring(parsed.indexOf("/")): ""
 
 // ===================================================================
 // def resultsDir = new File("output/results")
@@ -168,7 +164,7 @@ def basePath = parsed.contains("/") ? parsed.substring(parsed.indexOf("/")) : ""
 def apis = apiConfig.apis
 
 def cliGroup = System.getProperty("group")
-def cliApis  = System.getProperty("apis")
+def cliApis = System.getProperty("apis")
 
 def selectedApiNames = []
 
@@ -197,14 +193,18 @@ def decisionMessage = ""
 def isSpecificApiSelection = (cliApis != null)
 
 if (selectedApiNames.isEmpty()) {
-    selectedApiNames = apis.collect { it.name }
+    selectedApiNames = apis.collect {
+        it.name
+    }
     decisionMessage = "No CLI group or API filters → Running ALL APIs"
 } else {
     decisionMessage = "CLI filters applied → Running filtered API list"
 }
 
 // Filter actual API objects
-apis = apis.findAll { selectedApiNames.contains(it.name) }
+apis = apis.findAll {
+    selectedApiNames.contains(it.name)
+}
 
 // ⭐ otherApis MUST be defined AFTER login is forced FIRST
 // def otherApis = apis.drop(1)
@@ -214,14 +214,18 @@ apis = apis.findAll { selectedApiNames.contains(it.name) }
 // ===================================================================
 
 // NOTE: loginApi already declared earlier → do NOT redeclare it
-loginApi = apiConfig.apis.find { it.name.toLowerCase() == "login" }
+loginApi = apiConfig.apis.find {
+    it.name.toLowerCase() == "login"
+}
 
 if (!loginApi) {
     throw new IllegalStateException("No 'login' API found in apis.yaml")
 }
 
 // Remove login if already present
-apis = apis.findAll { it.name != loginApi.name }
+apis = apis.findAll {
+    it.name != loginApi.name
+}
 
 // Prepend login API
 apis = [loginApi] + apis
@@ -230,7 +234,9 @@ apis = [loginApi] + apis
 def otherApis = apis.drop(1)
 
 // Update final name list
-selectedApiNames = apis.collect { it.name }
+selectedApiNames = apis.collect {
+    it.name
+}
 
 // ===================================================================
 // Structured API Selection Summary
@@ -244,8 +250,8 @@ println "Decision                    : ${decisionMessage}"
 // Show final list ONLY when user selected specific APIs
 if (isSpecificApiSelection) {
     println "Final API List              :"
-    selectedApiNames.each { apiName ->
-        println "  - ${apiName}"
+    selectedApiNames.each {
+        apiName -> println "  - ${apiName}"
     }
 } else {
     println "Final API List              : (hidden — only shown for specific API selection)"
@@ -262,19 +268,16 @@ println ""
 // =======================================================
 // 1) JSR223 Response Code Assertion
 // =======================================================
-def buildResponseCodeJSR223Assertion = { builder, apiName, expectedCodes ->
-
-    builder.JSR223Assertion(
+def buildResponseCodeJSR223Assertion = {
+    builder, apiName, expectedCodes -> builder.JSR223Assertion(
         guiclass: "TestBeanGUI",
         testclass: "JSR223Assertion",
         testname: "${apiName}: Response Code Assertion",
         enabled: "true"
     ) {
         stringProp(name: "scriptLanguage", "groovy")
-
         // REQUIRED so assertion actually fails in JMeter 5.x
         boolProp(name: "cacheKey", "false")
-
         stringProp(
             name: "script",
             """
@@ -296,9 +299,8 @@ if (!expected.contains(actual)) {
 // =======================================================
 // 2) JSR223 Response Size > N Assertion
 // =======================================================
-def buildResponseSizeJSR223Assertion = { builder, apiName, minSize ->
-
-    builder.JSR223Assertion(
+def buildResponseSizeJSR223Assertion = {
+    builder, apiName, minSize -> builder.JSR223Assertion(
         guiclass: "TestBeanGUI",
         testclass: "JSR223Assertion",
         testname: "${apiName}: Response Size > ${minSize}",
@@ -306,7 +308,6 @@ def buildResponseSizeJSR223Assertion = { builder, apiName, minSize ->
     ) {
         stringProp(name: "scriptLanguage", "groovy")
         boolProp(name: "cacheKey", "false")
-
         stringProp(
             name: "script",
             """
@@ -327,9 +328,8 @@ if (size <= ${minSize}) {
 // =======================================================
 // 3) JSR223 Body NOT Contains Assertion
 // =======================================================
-def buildBodyNotContainsJSR223Assertion = { builder, apiName, forbiddenValues ->
-
-    builder.JSR223Assertion(
+def buildBodyNotContainsJSR223Assertion = {
+    builder, apiName, forbiddenValues -> builder.JSR223Assertion(
         guiclass: "TestBeanGUI",
         testclass: "JSR223Assertion",
         testname: "${apiName}: Body Not Contains",
@@ -337,7 +337,6 @@ def buildBodyNotContainsJSR223Assertion = { builder, apiName, forbiddenValues ->
     ) {
         stringProp(name: "scriptLanguage", "groovy")
         boolProp(name: "cacheKey", "false")
-
         stringProp(
             name: "script",
             """
@@ -362,8 +361,8 @@ for (val in forbidden) {
 // =======================================================
 // 4) Resolve assertions for API (UNCHANGED LOGIC)
 // =======================================================
-def resolveAssertionsForApi = { apiName ->
-    if (apiAssertionsMap.containsKey(apiName)) {
+def resolveAssertionsForApi = {
+    apiName -> if (apiAssertionsMap.containsKey(apiName)) {
         return apiAssertionsMap[apiName]
     }
     return defaultAssertions
@@ -373,38 +372,30 @@ def resolveAssertionsForApi = { apiName ->
 // =======================================================
 // 5) Dispatcher: YAML → JSR223 Assertions
 // =======================================================
-def buildAssertionFromSpec = { builder, apiName, spec ->
-
-    switch (spec.type) {
-
+def buildAssertionFromSpec = {
+    builder, apiName, spec -> switch (spec.type) {
         case "response_code":
-            buildResponseCodeJSR223Assertion(
-                builder,
-                apiName,
-                spec.values
-            )
-            break
-
-        case "response_size_gt":
-            buildResponseSizeJSR223Assertion(
-                builder,
-                apiName,
-                spec.value
-            )
-            break
-
-        case "body_not_contains":
-            buildBodyNotContainsJSR223Assertion(
-                builder,
-                apiName,
-                spec.values
-            )
-            break
-
-        default:
-            throw new IllegalArgumentException(
-                "Unknown assertion type '${spec.type}' for API '${apiName}'"
-            )
+        buildResponseCodeJSR223Assertion(
+            builder,
+            apiName,
+            spec.values
+        )
+        break case "response_size_gt":
+        buildResponseSizeJSR223Assertion(
+            builder,
+            apiName,
+            spec.value
+        )
+        break case "body_not_contains":
+        buildBodyNotContainsJSR223Assertion(
+            builder,
+            apiName,
+            spec.values
+        )
+        break default :
+        throw new IllegalArgumentException(
+            "Unknown assertion type '${spec.type}' for API '${apiName}'"
+        )
     }
 }
 
@@ -423,237 +414,207 @@ def writer = output.newWriter("UTF-8")
 def xml = new MarkupBuilder(writer)
 xml.omitNullAttributes = true
 
-xml.jmeterTestPlan(version:"1.2", properties:"5.0", jmeter:"5.6.3") {
-  hashTree {
-
-    TestPlan(
-      guiclass:"TestPlanGui",
-      testclass:"TestPlan",
-      testname:"Dynamic Test Plan",
-      enabled:"true"
-    ) {
-      stringProp(name:"TestPlan.comments","Env-aware, Dynamic API JMX Framework")
-      stringProp(name:"httpclient4.retrycount","0")
-      stringProp(name:"httpclient3.retrycount","0")
-    }
-
+xml.jmeterTestPlan(version: "1.2", properties: "5.0", jmeter: "5.6.3") {
     hashTree {
-
-      ThreadGroup(
-    guiclass:"ThreadGroupGui",
-    testclass:"ThreadGroup",
-    testname:"Main Thread Group",
-    enabled:"true"
-) {
-    stringProp(name:"ThreadGroup.num_threads", threads.toString())
-    stringProp(name:"ThreadGroup.ramp_time",  rampup.toString())
-
-    // FIX: scheduler must be ON only if duration exists
-    boolProp(name:"ThreadGroup.scheduler", (duration != null && duration > 0).toString())
-
-    // Only apply duration when explicitly passed AND > 0
-    if (duration != null && duration > 0) {
-        stringProp(name:"ThreadGroup.duration", duration.toString())
-    }
-
-    elementProp(name:"ThreadGroup.main_controller", elementType:"LoopController") {
-        boolProp(name:"LoopController.continue_forever","false")
-        stringProp(name:"LoopController.loops", loopLogin ? apiLoopCount.toString() : "1")
-    }
-
-    stringProp(name:"ThreadGroup.loop_count","-1")
-}
-
-      hashTree {
-
-        CSVDataSet(
-          guiclass:"TestBeanGUI",
-          testclass:"CSVDataSet",
-          testname:"Users Loader",
-          enabled:"true"
+        TestPlan(
+            guiclass: "TestPlanGui",
+            testclass: "TestPlan",
+            testname: "Dynamic Test Plan",
+            enabled: "true"
         ) {
-          stringProp(name:"filename", usersFile)
-          stringProp(name:"variableNames","username,password")
-          boolProp(name:"ignoreFirstLine","true")
-          boolProp(name:"recycle","true")
-          boolProp(name:"stopThread","false")
+            stringProp(name: "TestPlan.comments", "Env-aware, Dynamic API JMX Framework")
+            stringProp(name: "httpclient4.retrycount", "0")
+            stringProp(name: "httpclient3.retrycount", "0")
         }
-        hashTree()
-
-        CookieManager(
-          guiclass:"CookiePanel",
-          testclass:"CookieManager",
-          testname:"Cookie Manager",
-          enabled:"true"
-        ) {
-          boolProp(name:"CookieManager.clearEachIteration","false")
-        }
-        hashTree()
-
-        // LOGIN SAMPLER
-        def login = loginApi
-        def loginPayloadFile = (login.payload == "useEnv")
-          ? envConfig[envName]?.payloads?.get(login.name)
-          : login.payload
-
-        if (!loginPayloadFile) {
-            throw new IllegalStateException(
-                "Missing payload for LOGIN API '${login.name}' in environment '${envName}'"
-            )
-        }
-        def loginPayloadText = new File(loginPayloadFile).text
-
-        HTTPSamplerProxy(
-          guiclass:"HttpTestSampleGui",
-          testclass:"HTTPSamplerProxy",
-          testname: login.name,
-          enabled:"true"
-        ) {
-          boolProp(name:"HTTPSampler.follow_redirects", "false")
-          boolProp(name:"HTTPSampler.auto_redirects",  "false")
-          boolProp(name:"HTTPSampler.image_parser", "false")
-          boolProp(name:"HTTPSampler.concurrentDwn", "false")
-          stringProp(name:"HTTPSampler.domain", domain)
-          stringProp(name:"HTTPSampler.protocol", baseUrl.startsWith("https") ? "https" : "http")
-          stringProp(name:"HTTPSampler.path", basePath + login.endpoint)
-          stringProp(name:"HTTPSampler.method", login.method)
-          boolProp(name:"HTTPSampler.postBodyRaw","true")
-
-          elementProp(name:"HTTPsampler.Arguments", elementType:"Arguments") {
-            collectionProp(name:"Arguments.arguments") {
-              elementProp(name:"body", elementType:"HTTPArgument") {
-                boolProp(name:"HTTPArgument.always_encode","false")
-                stringProp(name:"Argument.value", loginPayloadText)
-                stringProp(name:"Argument.metadata","=")
-              }
-            }
-          }
-        }
-
         hashTree {
-
-          // CORRECT HEADERMANAGER FOR LOGIN
-          HeaderManager(
-            guiclass:"HeaderPanel",
-            testclass:"HeaderManager",
-            testname:"Headers for login",
-            enabled:"true"
-          ) {
-            'collectionProp'(name:"HeaderManager.headers") {
-              headersConfig["loginHeaders"].each { k, v ->
-  def resolved = v.replace("__BASE_URL__", baseUrl)
-
-  'elementProp'(name:k, elementType:"Header") {
-    'stringProp'(name:"Header.name",  k)
-    'stringProp'(name:"Header.value", resolved)
-  }
-}
-            }
-          }
-          hashTree()
-
-          if (debugMode) {
-            DebugPostProcessor(
-              guiclass:"TestBeanGUI",
-              testclass:"DebugPostProcessor",
-              testname:"Debug After Login",
-              enabled:"true"
-            )
-            hashTree()
-          }
-          // === YAML-DRIVEN ASSERTIONS FOR LOGIN ===
-resolveAssertionsForApi(login.name).each { spec ->
-    buildAssertionFromSpec(delegate, login.name, spec)
-    hashTree()
-}
-        }
-
-        // OTHER APIs
-        otherApis.each { api ->
-
-          def payloadFile = (api.payload == "useEnv")
-            ? envConfig[envName]?.payloads?.get(api.name)
-            : api.payload
-
-          if (!payloadFile) {
-              throw new IllegalStateException(
-                  "Missing payload for API '${api.name}' in environment '${envName}'"
-              )
-          }
-
-          def payloadText = new File(payloadFile).text
-
-          HTTPSamplerProxy(
-            guiclass:"HttpTestSampleGui",
-            testclass:"HTTPSamplerProxy",
-            testname: api.name,
-            enabled:"true"
-          ) {
-            boolProp(name:"HTTPSampler.follow_redirects", "false")
-            boolProp(name:"HTTPSampler.auto_redirects",  "false")
-            boolProp(name:"HTTPSampler.image_parser", "false")
-            boolProp(name:"HTTPSampler.concurrentDwn", "false")
-            stringProp(name:"HTTPSampler.domain", domain)
-            stringProp(name:"HTTPSampler.protocol", baseUrl.startsWith("https") ? "https" : "http")
-            stringProp(name:"HTTPSampler.path", basePath + api.endpoint)
-            stringProp(name:"HTTPSampler.method", api.method)
-            boolProp(name:"HTTPSampler.postBodyRaw","true")
-
-            elementProp(name:"HTTPsampler.Arguments", elementType:"Arguments") {
-              collectionProp(name:"Arguments.arguments") {
-                elementProp(name:"body",elementType:"HTTPArgument") {
-                  boolProp(name:"HTTPArgument.always_encode","false")
-                  stringProp(name:"Argument.value", payloadText)
-                  stringProp(name:"Argument.metadata","=")
-                }
-              }
-            }
-          }
-
-          hashTree {
-
-            // CORRECT HEADERMANAGER FOR APIs
-            HeaderManager(
-              guiclass:"HeaderPanel",
-              testclass:"HeaderManager",
-              testname:"Headers for ${api.name}",
-              enabled:"true"
+            ThreadGroup(
+                guiclass: "ThreadGroupGui",
+                testclass: "ThreadGroup",
+                testname: "Main Thread Group",
+                enabled: "true"
             ) {
-              'collectionProp'(name:"HeaderManager.headers") {
-                headersConfig["apiHeaders"].each { k, v ->
-  def resolved = v.replace("__BASE_URL__", baseUrl)
-
-  'elementProp'(name:k, elementType:"Header") {
-    'stringProp'(name:"Header.name",  k)
-    'stringProp'(name:"Header.value", resolved)
-  }
-}
-              }
+                stringProp(name: "ThreadGroup.num_threads", threads.toString())
+                stringProp(name: "ThreadGroup.ramp_time", rampup.toString())
+                // FIX: scheduler must be ON only if duration exists
+                boolProp(name: "ThreadGroup.scheduler", (duration != null && duration > 0).toString())
+                // Only apply duration when explicitly passed AND > 0
+                if (duration != null && duration > 0) {
+                    stringProp(name: "ThreadGroup.duration", duration.toString())
+                }
+                elementProp(name: "ThreadGroup.main_controller", elementType: "LoopController") {
+                    boolProp(name: "LoopController.continue_forever", "false")
+                    stringProp(name: "LoopController.loops", loopLogin ? apiLoopCount.toString(): "1")
+                }
+                stringProp(name: "ThreadGroup.loop_count", "-1")
             }
-            hashTree()
-
-            if (debugMode) {
-              DebugPostProcessor(
-                guiclass:"TestBeanGUI",
-                testclass:"DebugPostProcessor",
-                testname:"Debug After ${api.name}",
-                enabled:"true"
-              )
-              hashTree()
+            hashTree {
+                CSVDataSet(
+                    guiclass: "TestBeanGUI",
+                    testclass: "CSVDataSet",
+                    testname: "Users Loader",
+                    enabled: "true"
+                ) {
+                    stringProp(name: "filename", usersFile)
+                    stringProp(name: "variableNames", "username,password")
+                    boolProp(name: "ignoreFirstLine", "true")
+                    boolProp(name: "recycle", "true")
+                    boolProp(name: "stopThread", "false")
+                }
+                hashTree()
+                CookieManager(
+                    guiclass: "CookiePanel",
+                    testclass: "CookieManager",
+                    testname: "Cookie Manager",
+                    enabled: "true"
+                ) {
+                    boolProp(name: "CookieManager.clearEachIteration", "false")
+                }
+                hashTree()
+                // LOGIN SAMPLER
+                def login = loginApi
+                def loginPayloadFile = (login.payload == "useEnv")
+ ? envConfig[envName]?.payloads?.get(login.name)
+: login.payload
+                if (!loginPayloadFile) {
+                    throw new IllegalStateException(
+                        "Missing payload for LOGIN API '${login.name}' in environment '${envName}'"
+                    )
+                }
+                def loginPayloadText = new File(loginPayloadFile).text
+                HTTPSamplerProxy(
+                    guiclass: "HttpTestSampleGui",
+                    testclass: "HTTPSamplerProxy",
+                    testname: login.name,
+                    enabled: "true"
+                ) {
+                    boolProp(name: "HTTPSampler.follow_redirects", "false")
+                    boolProp(name: "HTTPSampler.auto_redirects", "false")
+                    boolProp(name: "HTTPSampler.image_parser", "false")
+                    boolProp(name: "HTTPSampler.concurrentDwn", "false")
+                    stringProp(name: "HTTPSampler.domain", domain)
+                    stringProp(name: "HTTPSampler.protocol", baseUrl.startsWith("https") ? "https": "http")
+                    stringProp(name: "HTTPSampler.path", basePath + login.endpoint)
+                    stringProp(name: "HTTPSampler.method", login.method)
+                    boolProp(name: "HTTPSampler.postBodyRaw", "true")
+                    elementProp(name: "HTTPsampler.Arguments", elementType: "Arguments") {
+                        collectionProp(name: "Arguments.arguments") {
+                            elementProp(name: "body", elementType: "HTTPArgument") {
+                                boolProp(name: "HTTPArgument.always_encode", "false")
+                                stringProp(name: "Argument.value", loginPayloadText)
+                                stringProp(name: "Argument.metadata", "=")
+                            }
+                        }
+                    }
+                }
+                hashTree {
+                    // CORRECT HEADERMANAGER FOR LOGIN
+                    HeaderManager(
+                        guiclass: "HeaderPanel",
+                        testclass: "HeaderManager",
+                        testname: "Headers for login",
+                        enabled: "true"
+                    ) {
+                        'collectionProp'(name: "HeaderManager.headers") {
+                            headersConfig["loginHeaders"].each {
+                                k, v -> def resolved = v.replace("__BASE_URL__", baseUrl)
+                                'elementProp'(name: k, elementType: "Header") {
+                                    'stringProp'(name: "Header.name", k)
+                                    'stringProp'(name: "Header.value", resolved)
+                                }
+                            }
+                        }
+                    }
+                    hashTree()
+                    if (debugMode) {
+                        DebugPostProcessor(
+                            guiclass: "TestBeanGUI",
+                            testclass: "DebugPostProcessor",
+                            testname: "Debug After Login",
+                            enabled: "true"
+                        )
+                        hashTree()
+                    }
+                    // === YAML-DRIVEN ASSERTIONS FOR LOGIN ===
+                    resolveAssertionsForApi(login.name).each {
+                        spec -> buildAssertionFromSpec(delegate, login.name, spec)
+                        hashTree()
+                    }
+                }
+                // OTHER APIs
+                otherApis.each {
+                    api -> def payloadFile = (api.payload == "useEnv")
+ ? envConfig[envName]?.payloads?.get(api.name)
+: api.payload
+                    if (!payloadFile) {
+                        throw new IllegalStateException(
+                            "Missing payload for API '${api.name}' in environment '${envName}'"
+                        )
+                    }
+                    def payloadText = new File(payloadFile).text
+                    HTTPSamplerProxy(
+                        guiclass: "HttpTestSampleGui",
+                        testclass: "HTTPSamplerProxy",
+                        testname: api.name,
+                        enabled: "true"
+                    ) {
+                        boolProp(name: "HTTPSampler.follow_redirects", "false")
+                        boolProp(name: "HTTPSampler.auto_redirects", "false")
+                        boolProp(name: "HTTPSampler.image_parser", "false")
+                        boolProp(name: "HTTPSampler.concurrentDwn", "false")
+                        stringProp(name: "HTTPSampler.domain", domain)
+                        stringProp(name: "HTTPSampler.protocol", baseUrl.startsWith("https") ? "https": "http")
+                        stringProp(name: "HTTPSampler.path", basePath + api.endpoint)
+                        stringProp(name: "HTTPSampler.method", api.method)
+                        boolProp(name: "HTTPSampler.postBodyRaw", "true")
+                        elementProp(name: "HTTPsampler.Arguments", elementType: "Arguments") {
+                            collectionProp(name: "Arguments.arguments") {
+                                elementProp(name: "body", elementType: "HTTPArgument") {
+                                    boolProp(name: "HTTPArgument.always_encode", "false")
+                                    stringProp(name: "Argument.value", payloadText)
+                                    stringProp(name: "Argument.metadata", "=")
+                                }
+                            }
+                        }
+                    }
+                    hashTree {
+                        // CORRECT HEADERMANAGER FOR APIs
+                        HeaderManager(
+                            guiclass: "HeaderPanel",
+                            testclass: "HeaderManager",
+                            testname: "Headers for ${api.name}",
+                            enabled: "true"
+                        ) {
+                            'collectionProp'(name: "HeaderManager.headers") {
+                                headersConfig["apiHeaders"].each {
+                                    k, v -> def resolved = v.replace("__BASE_URL__", baseUrl)
+                                    'elementProp'(name: k, elementType: "Header") {
+                                        'stringProp'(name: "Header.name", k)
+                                        'stringProp'(name: "Header.value", resolved)
+                                    }
+                                }
+                            }
+                        }
+                        hashTree()
+                        if (debugMode) {
+                            DebugPostProcessor(
+                                guiclass: "TestBeanGUI",
+                                testclass: "DebugPostProcessor",
+                                testname: "Debug After ${api.name}",
+                                enabled: "true"
+                            )
+                            hashTree()
+                        }
+                        // ============================
+                        // === YAML-DRIVEN ASSERTIONS FOR THIS API ===
+                        resolveAssertionsForApi(api.name).each {
+                            spec -> buildAssertionFromSpec(delegate, api.name, spec)
+                            hashTree()
+                        }
+                    }
+                }
             }
-            // ============================
-          // === YAML-DRIVEN ASSERTIONS FOR THIS API ===
-resolveAssertionsForApi(api.name).each { spec ->
-    buildAssertionFromSpec(delegate, api.name, spec)
-    hashTree()
-}
-          }
-
         }
-
-      }
     }
-  }
 }
 
 writer.close()
