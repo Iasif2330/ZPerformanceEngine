@@ -29,7 +29,7 @@ class DecisionEngine:
 
         status = client_anomaly.get("status")
         anomalies = client_anomaly.get("anomalies", {})
-        baseline_meta = client_anomaly.get("baseline_meta")
+        baseline_meta = client_anomaly.get("baseline_meta") or {}
 
         # --------------------------------------------------
         # 1. No baseline / learning phase
@@ -40,13 +40,13 @@ class DecisionEngine:
                 confidence="LOW"
             )
 
-                if status == "WEAK_BASELINE":
-                    reasons.append(
-                        f"Weak baseline (samples={baseline_meta.get('sample_count')})"
-                    )
+        if status == "WEAK_BASELINE":
+            reasons.append(
+                f"Weak baseline (samples={baseline_meta.get('sample_count')})"
+            )
 
         # --------------------------------------------------
-        # 2. No client anomaly → auto accept
+        # 2. No client anomaly → REVIEW (AUTO_ACCEPT removed)
         # --------------------------------------------------
         if status == "OK":
             return self._review(
