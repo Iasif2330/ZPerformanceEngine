@@ -15,6 +15,11 @@ class BaselineStore:
       - environment
       - load_profile
 
+    Rolling baseline semantics:
+      - Uses a sliding window of the most recent completed runs
+      - Excludes the current run to avoid self-poisoning
+      - Window advances on every run
+
     Snapshots are:
       - auto-created per run
       - retention bounded
@@ -50,7 +55,7 @@ class BaselineStore:
             "timestamp": timestamp,
             "environment": self.environment,
             "load_profile": self.load_profile,
-            "client_metrics": client_metrics
+            "client_metrics": client_metrics,
         }
 
         filename = (
@@ -95,13 +100,29 @@ class BaselineStore:
         aggregation = rolling["aggregation"]
 
         snapshots = self._load_scoped_snapshots()
+        total_available = len(snapshots)
 
-        # Learning phase — not enough data
-        if len(snapshots) < min_required:
+        # Need at least (min_required + 1) snapshots
+        # because the most recent snapshot is excluded
+        if total_available < min_required + 1:
             return None
 
-        # Use oldest runs to avoid poisoning baseline with recent regressions
-        selected = list(reversed(snapshots))[:window_size]
+        # ------------------------------------------------
+        # TRUE ROLLING WINDOW
+        #
+        # snapshots are sorted: newest → oldest
+        # Exclude the most recent snapshot (current run)
+        # and take the next `window_size` snapshots
+        #
+        # Example:
+        # snapshots = [R5, R4, R3, R2]
+        # selected  = [R4, R3]  (window_size = 2)
+        # ------------------------------------------------
+        selected = snapshots[1 : window_size + 1]
+
+        if len(selected) < min_required:
+            return None
+
         metrics = [s["client_metrics"] for s in selected]
 
         return {
@@ -111,7 +132,8 @@ class BaselineStore:
                 "window_size": window_size,
                 "aggregation": aggregation,
                 "sample_count": len(metrics),
-            }
+                "snapshot_ids": [s["run_id"] for s in selected],
+            },
         }
 
     def _load_snapshot_baseline(self) -> dict:
@@ -132,7 +154,7 @@ class BaselineStore:
                 "type": "snapshot",
                 "name": snapshot_name,
                 "sample_count": 1,
-            }
+            },
         }
 
     def _load_scoped_snapshots(self) -> list[dict]:
@@ -151,10 +173,9 @@ class BaselineStore:
                 continue
 
             if (
-                data.get("environment") == self.environment and
-                data.get("load_profile") == self.load_profile
+                data.get("environment") == self.environment
+                and data.get("load_profile") == self.load_profile
             ):
-                # Store filename to make deletion safer later
                 data["_filename"] = path.name
                 snapshots.append(data)
 
@@ -180,7 +201,7 @@ class BaselineStore:
                 "error_rate_pct": agg_fn(
                     [m["errors"]["error_rate_pct"] for m in metrics]
                 ),
-            }
+            },
         }
 
     def _enforce_retention(self):
@@ -198,7 +219,8 @@ class BaselineStore:
         if len(snapshots) <= max_snapshots:
             return
 
-        # Delete older snapshots beyond retention window
+        # snapshots are sorted newest → oldest
+        # delete anything beyond max_snapshots
         for snapshot in snapshots[max_snapshots:]:
             path = self.storage_path / snapshot["_filename"]
             if path.exists():
