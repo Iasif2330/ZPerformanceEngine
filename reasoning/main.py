@@ -697,21 +697,17 @@ def main():
 
     section("Final Assessment")
 
+    print(
+        "  • Diagnostic mode only — no decision or confidence generated.",
+        flush=True
+    )
+
     decision_obj = {
-        "decision": "REVIEW",
-        "confidence": "INFORMATIONAL",
-        "reasons": [
-            "Decision engine disabled — diagnostic mode only"
-        ],
+        "mode": "diagnostic_only",
         "attribution": server_correlation.get("attribution", {}),
+        "explanations": explanations,
+        "baseline_meta": anomaly_result.get("baseline_meta"),
     }
-    decision_obj["explanations"] = explanations
-
-    # Propagate baseline metadata so reports and decisions can account for baseline strength
-    decision_obj["baseline_meta"] = anomaly_result.get("baseline_meta")
-
-    kv("Decision", decision_obj["decision"])
-    kv("Confidence", decision_obj["confidence"])
 
     decision_obj["causal_chain"] = causal_chain
 
@@ -760,16 +756,11 @@ def _final_exit(
         anomaly=anomaly,
         server_correlation=server_correlation,
         decision={
-            "decision": decision,
-            "confidence": confidence,
+            "mode": "diagnostic_only",
             "reasons": reasons,
             "causal_chain": causal_chain
         }
     )
-
-    section("Final Outcome")
-    kv("Decision", decision)
-    kv("Confidence", confidence)
 
     sys.exit(0)
 
