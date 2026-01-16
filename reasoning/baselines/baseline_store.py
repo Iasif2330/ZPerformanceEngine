@@ -30,11 +30,13 @@ class BaselineStore:
     # -------------------------
 
     def save_run(self, run_id: str, client_metrics: dict) -> str:
-        timestamp = datetime.utcnow().isoformat(timespec="seconds").replace(":", "-")
+        ts_dt = datetime.utcnow()
+        timestamp = ts_dt.isoformat(timespec="seconds").replace(":", "-")
 
         record = {
             "run_id": run_id,
             "timestamp": timestamp,
+            "timestamp_epoch": ts_dt.timestamp(),
             "environment": self.environment,
             "load_profile": self.load_profile,
             "client_metrics": client_metrics,
@@ -166,12 +168,24 @@ class BaselineStore:
                 and data.get("load_profile") == self.load_profile
             ):
                 data["_filename"] = path.name
-                data["_parsed_ts"] = datetime.fromisoformat(
-                    data["timestamp"].replace("-", ":", 2)
-                )
+
+                # Backward-compatible timestamp handling
+                if "timestamp_epoch" in data:
+                    data["_sort_ts"] = data["timestamp_epoch"]
+                else:
+                    # Fallback for old snapshots (best-effort)
+                    try:
+                        date, time = data["timestamp"].split("T")
+                        time = time.replace("-", ":")
+                        data["_sort_ts"] = datetime.fromisoformat(
+                            f"{date}T{time}"
+                        ).timestamp()
+                    except Exception:
+                        data["_sort_ts"] = 0
+
                 snapshots.append(data)
 
-        snapshots.sort(key=lambda x: x["_parsed_ts"], reverse=True)
+        snapshots.sort(key=lambda x: x["_sort_ts"], reverse=True)
         return snapshots
 
     def _aggregate(self, metrics_with_ids: List[tuple], aggregation: str) -> dict:
