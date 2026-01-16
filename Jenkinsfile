@@ -324,9 +324,29 @@ pipeline {
     }
 
     post {
+        always {
+            mail(
+                from: 'aansari_c@ontic.co',
+                to: 'aansari_c@ontic.co',
+                subject: "[Jenkins] ${env.JOB_NAME} #${env.BUILD_NUMBER} — ${currentBuild.currentResult}",
+                body: """
+    Job: ${env.JOB_NAME}
+    Build: #${env.BUILD_NUMBER}
+    Result: ${currentBuild.currentResult}
+
+    Environment: ${env.ENVIRONMENT}
+    Load Profile: ${env.LOAD_PROFILE}
+
+    Build URL:
+    ${env.BUILD_URL}
+    """
+            )
+        }
+
         success {
             echo "🎉 Pipeline completed successfully"
         }
+
         failure {
             echo "❌ Pipeline failed — see reasoning report for explanation"
         }
