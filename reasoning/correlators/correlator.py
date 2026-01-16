@@ -31,7 +31,7 @@ class Correlator:
         """
 
         # --------------------------------------------------
-        # No server data
+        # No server data available
         # --------------------------------------------------
         if server_metrics is None or server_metrics.get("status") != "AVAILABLE":
             return {
@@ -51,7 +51,7 @@ class Correlator:
             "server_saturated": False,
             "server_slow": False,
             "server_erroring": False,
-            "server_healthy": True,  # assume healthy, disprove later
+            "server_healthy": True,  # optimistic default
         }
 
         # --------------------------------------------------
@@ -61,16 +61,22 @@ class Correlator:
             metric = sig.get("metric")
             current = sig.get("current")
 
+            # Defensive: skip unknown or missing data
+            if metric is None or current is None:
+                continue
+
             rule = ruleset.get(metric)
-            if not rule or current is None:
-                continue  # unsupported or missing metric
+            if not rule:
+                continue  # metric not governed by rules
 
             severity = self._assign_severity(
                 current=current,
                 rule=rule
             )
 
-            # Record signal if threshold crossed
+            # --------------------------------------------------
+            # Record violating signal
+            # --------------------------------------------------
             if severity:
                 signals.append({
                     "metric": metric,
@@ -78,22 +84,26 @@ class Correlator:
                     "severity": severity,
                 })
 
-                # ------------------------------------------
-                # Derive server states (objective rules)
-                # ------------------------------------------
-                if metric in ("cpu_pct", "memory_pct", "jvm_threads"):
+                # ----------------------------------------------
+                # Derive server states (metric → state mapping)
+                # ----------------------------------------------
+                if metric in ("cpu", "mem", "threads"):
                     states["server_saturated"] = True
 
-                if metric == "server_latency_p95_ms":
+                if metric == "httplatp95":
                     states["server_slow"] = True
 
-                if metric == "http5xx_rate":
+                if metric == "http5xx":
                     states["server_erroring"] = True
 
         # --------------------------------------------------
         # Final state resolution
         # --------------------------------------------------
-        if states["server_saturated"] or states["server_slow"] or states["server_erroring"]:
+        if (
+            states["server_saturated"]
+            or states["server_slow"]
+            or states["server_erroring"]
+        ):
             states["server_healthy"] = False
 
         status = "CONFIRMED" if signals else "NOT_CONFIRMED"

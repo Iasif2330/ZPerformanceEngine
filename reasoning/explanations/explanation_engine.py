@@ -1,5 +1,3 @@
-# reasoning/explanations/explanation_engine.py
-
 from typing import Dict, List
 
 
@@ -112,10 +110,11 @@ class ExplanationEngine:
     Composes human-readable explanations from
     client anomalies and server states.
 
-    This engine:
-    - Uses invariant-based reasoning
-    - Does NOT guess root cause
-    - Does NOT affect CI decisions
+    GUARANTEES:
+    - Invariant-based reasoning only
+    - No root-cause guessing
+    - No CI impact
+    - Deterministic output
     """
 
     def __init__(self, rules: List[Dict]):
@@ -127,18 +126,32 @@ class ExplanationEngine:
         server_correlation: Dict
     ) -> List[str]:
 
+        # --------------------------------------------------
+        # Handle trivial / safe cases
+        # --------------------------------------------------
+        if client_anomaly.get("status") in ("OK", "NO_BASELINE"):
+            return [
+                "No client-side performance anomalies were detected "
+                "during this test run."
+            ]
+
         facts = self._extract_facts(client_anomaly, server_correlation)
         explanation: List[str] = []
 
+        # --------------------------------------------------
+        # Apply invariant rules
+        # --------------------------------------------------
         for rule in self.rules:
             if self._matches(rule["when"], facts):
                 explanation.extend(rule["explain"])
 
-                # ERROR-DOMINANT rules should short-circuit
+                # Error-dominant cases terminate early by design
                 if facts.get("has_errors"):
                     break
 
-        # Fallback (should rarely happen)
+        # --------------------------------------------------
+        # Fallback (should be rare)
+        # --------------------------------------------------
         if not explanation:
             explanation.append(
                 "Observed client behavior could not be conclusively "
@@ -156,14 +169,18 @@ class ExplanationEngine:
         client_anomaly: Dict,
         server_correlation: Dict
     ) -> Dict:
+        """
+        Convert raw anomaly + server correlation data
+        into boolean facts usable by invariant rules.
+        """
 
         anomalies = client_anomaly.get("anomalies", {})
         states = server_correlation.get("states", {})
 
         return {
-            # ---- Client facts (FIXED: inspect anomaly *values*, not keys) ----
+            # ---------------- Client facts ----------------
             "has_errors": any(
-                v.get("metric", "").endswith("error_rate_pct")
+                v.get("metric") == "errors.error_rate_pct"
                 for v in anomalies.values()
             ),
 
@@ -177,7 +194,7 @@ class ExplanationEngine:
                 for v in anomalies.values()
             ),
 
-            # ---- Server facts ----
+            # ---------------- Server facts ----------------
             "server_healthy": states.get("server_healthy", False),
             "server_saturated": states.get("server_saturated", False),
             "server_slow": states.get("server_slow", False),
@@ -186,4 +203,7 @@ class ExplanationEngine:
 
     @staticmethod
     def _matches(conditions: Dict, facts: Dict) -> bool:
+        """
+        Rule match = all required facts match exactly.
+        """
         return all(facts.get(k) == v for k, v in conditions.items())

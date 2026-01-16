@@ -1,20 +1,17 @@
 server_rules:
-  cpu:
+
+  cpu_pct:
     minor_abs: 70
     severe_abs: 90
 
-  mem:
-    minor_abs: 70
+  mem_pct:
+    minor_abs: 75
     severe_abs: 90
 
-  threads:
-    minor_abs: 40
-    severe_abs: 80
+  cpu_throttle_pct:
+    minor_abs: 10
+    severe_abs: 30
 
-  http5xx:
-    minor_abs: 1
-    severe_abs: 5
-
-  httplatp95:
-    minor_abs: 50
-    severe_abs: 100
+  mem_pressure_pct:
+    minor_abs: 5
+    severe_abs: 20
