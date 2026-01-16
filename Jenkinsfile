@@ -325,7 +325,7 @@ pipeline {
 
     post {
     always {
-        mail(
+        emailext(
             from: 'aansari_c@ontic.co',
             to: 'aansari_c@ontic.co',
             subject: "[Jenkins] ${env.JOB_NAME} #${env.BUILD_NUMBER} — ${currentBuild.currentResult}",
