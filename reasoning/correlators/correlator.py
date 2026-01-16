@@ -3,13 +3,15 @@ from typing import Dict, List
 
 class Correlator:
     """
-    Correlates server-side telemetry and derives server states.
+    Correlates server-side telemetry and derives server states
+    + probabilistic attribution of likely causes.
 
     DESIGN PRINCIPLES:
     - Server correlation is NOT baseline-driven
     - Absolute thresholds only
     - State-based output (not metric-based)
-    - Uses ONLY infra-level signals (no APM)
+    - Infra-only signals (NO APM)
+    - No CI gating or auto-accept logic
     """
 
     def correlate(
@@ -24,26 +26,28 @@ class Correlator:
           status: CONFIRMED | NOT_CONFIRMED | NOT_AVAILABLE
           states: {...}
           signals: [...]
+          attribution: {...}
         }
         """
 
-        # -------------------------------
+        # --------------------------------------------------
         # No server data
-        # -------------------------------
+        # --------------------------------------------------
         if server_metrics is None or server_metrics.get("status") != "AVAILABLE":
             return {
                 "status": "NOT_AVAILABLE",
                 "states": {},
                 "signals": [],
+                "attribution": {},
             }
 
         ruleset = rules.get("server_rules", {})
 
         signals: List[Dict] = []
 
-        # -------------------------------
+        # --------------------------------------------------
         # Initialize server states
-        # -------------------------------
+        # --------------------------------------------------
         states = {
             "server_saturated": False,     # cpu_pct OR mem_pct
             "server_throttled": False,     # cpu_throttle_pct
@@ -51,9 +55,9 @@ class Correlator:
             "server_healthy": True,        # disproved later
         }
 
-        # -------------------------------
+        # --------------------------------------------------
         # Evaluate each server signal
-        # -------------------------------
+        # --------------------------------------------------
         for sig in server_metrics.get("signals", []):
             metric = sig.get("metric")
             current = sig.get("current")
@@ -83,9 +87,9 @@ class Correlator:
                 if metric == "mem_pressure_pct":
                     states["server_mem_pressure"] = True
 
-        # -------------------------------
+        # --------------------------------------------------
         # Final health resolution
-        # -------------------------------
+        # --------------------------------------------------
         if (
             states["server_saturated"]
             or states["server_throttled"]
@@ -95,15 +99,21 @@ class Correlator:
 
         status = "CONFIRMED" if signals else "NOT_CONFIRMED"
 
+        # --------------------------------------------------
+        # Bayesian-style attribution (SAFE, INLINE)
+        # --------------------------------------------------
+        attribution = self._derive_attribution(states)
+
         return {
             "status": status,
             "states": states,
             "signals": signals,
+            "attribution": attribution,
         }
 
-    # -------------------------------
+    # --------------------------------------------------
     # Helpers
-    # -------------------------------
+    # --------------------------------------------------
     def _assign_severity(self, current: float, rule: Dict) -> str | None:
         """
         rule format:
@@ -112,7 +122,6 @@ class Correlator:
           severe_abs: number
         }
         """
-
         severe = rule.get("severe_abs")
         minor = rule.get("minor_abs")
 
@@ -123,3 +132,51 @@ class Correlator:
             return "MINOR"
 
         return None
+
+    def _derive_attribution(self, states: Dict) -> Dict:
+        """
+        Derive probabilistic attribution from server states.
+        This does NOT decide pass/fail — only likelihoods.
+        """
+
+        # --------------------------------------------------
+        # Base priors (uninformative)
+        # --------------------------------------------------
+        attribution = {
+            "capacity": 0.33,
+            "execution": 0.33,
+            "non_infra": 0.34,
+        }
+
+        # --------------------------------------------------
+        # Evidence updates
+        # --------------------------------------------------
+        if states.get("server_saturated"):
+            attribution["capacity"] += 0.30
+            attribution["non_infra"] -= 0.15
+
+        if states.get("server_throttled"):
+            attribution["execution"] += 0.25
+            attribution["capacity"] += 0.10
+
+        if states.get("server_mem_pressure"):
+            attribution["capacity"] += 0.25
+            attribution["execution"] += 0.05
+
+        if states.get("server_healthy"):
+            attribution["non_infra"] += 0.30
+            attribution["capacity"] -= 0.15
+            attribution["execution"] -= 0.15
+
+        # --------------------------------------------------
+        # Clamp + normalize
+        # --------------------------------------------------
+        for k in attribution:
+            attribution[k] = max(attribution[k], 0.0)
+
+        total = sum(attribution.values())
+        if total > 0:
+            for k in attribution:
+                attribution[k] = round(attribution[k] / total, 2)
+
+        return attribution

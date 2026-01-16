@@ -168,7 +168,18 @@ class ExplanationEngine:
                 "Observed client behavior could not be conclusively "
                 "explained using available server signals."
             )
+        # --------------------------------------------------
+        # Add attribution summary (human-readable)
+        # --------------------------------------------------
+        attribution = server_correlation.get("attribution")
+        if attribution:
+            top = max(attribution, key=attribution.get)
+            pct = int(attribution[top] * 100)
 
+            explanation.append(
+                f"Most likely cause category: {top.replace('_', ' ')} "
+                f"({pct}% likelihood based on infrastructure signals)."
+            )
         return explanation
 
     # --------------------------------------------------

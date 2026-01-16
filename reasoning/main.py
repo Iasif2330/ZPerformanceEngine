@@ -652,6 +652,17 @@ def main():
 
     server_correlation = Correlator().correlate(server_metrics, None, server_rules)
     kv("Server correlation status", server_correlation["status"])
+    # -----------------------------
+    # Attribution (probabilistic)
+    # -----------------------------
+    attribution = server_correlation.get("attribution", {})
+
+    if attribution:
+        print("\n  Likely Cause Attribution:", flush=True)
+        for cause, prob in attribution.items():
+            pct = int(prob * 100)
+            print(f"     • {cause}: {pct}%", flush=True)
+
     states = server_correlation.get("states", {})
     state_explanations = explain_server_states(
         server_metrics,
@@ -684,11 +695,16 @@ def main():
         "evidence": server_correlation
     })
 
-    section("Final Decision")
-    decision_obj = DecisionEngine(auto_accept_rules).decide(
-        anomaly_result,
-        server_correlation
-    )
+    section("Final Assessment")
+
+    decision_obj = {
+        "decision": "REVIEW",
+        "confidence": "INFORMATIONAL",
+        "reasons": [
+            "Decision engine disabled — diagnostic mode only"
+        ],
+        "attribution": server_correlation.get("attribution", {}),
+    }
     decision_obj["explanations"] = explanations
 
     # Propagate baseline metadata so reports and decisions can account for baseline strength
