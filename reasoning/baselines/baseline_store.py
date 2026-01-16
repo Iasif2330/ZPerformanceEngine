@@ -184,23 +184,36 @@ class BaselineStore:
 
     def _aggregate(self, metrics: list[dict], aggregation: str) -> dict:
         """
-        Aggregate metrics into a baseline using median or average.
+        Aggregate metrics into a baseline using median or average,
+        while exposing the exact samples used for transparency.
         """
+
         agg_fn = median if aggregation == "median" else mean
+
+        def explain(values: list[float]) -> dict:
+            return {
+                "aggregation": aggregation,
+                "samples": values,
+                "value": agg_fn(values),
+            }
+
+        lat_avg  = [m["latency"]["avg_ms"] for m in metrics]
+        lat_p95  = [m["latency"]["p95_ms"] for m in metrics]
+        lat_p99  = [m["latency"]["p99_ms"] for m in metrics]
+        tps_vals = [m["throughput"]["tps"] for m in metrics]
+        err_vals = [m["errors"]["error_rate_pct"] for m in metrics]
 
         return {
             "latency": {
-                "avg_ms": agg_fn([m["latency"]["avg_ms"] for m in metrics]),
-                "p95_ms": agg_fn([m["latency"]["p95_ms"] for m in metrics]),
-                "p99_ms": agg_fn([m["latency"]["p99_ms"] for m in metrics]),
+                "avg_ms": explain(lat_avg),
+                "p95_ms": explain(lat_p95),
+                "p99_ms": explain(lat_p99),
             },
             "throughput": {
-                "tps": agg_fn([m["throughput"]["tps"] for m in metrics]),
+                "tps": explain(tps_vals),
             },
             "errors": {
-                "error_rate_pct": agg_fn(
-                    [m["errors"]["error_rate_pct"] for m in metrics]
-                ),
+                "error_rate_pct": explain(err_vals),
             },
         }
 
