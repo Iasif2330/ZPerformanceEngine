@@ -339,16 +339,12 @@ Load Profile: ${env.LOAD_PROFILE}
 
 Build URL:
 ${env.BUILD_URL}
-"""
+
+Attached:
+- performance-reports.zip
+""",
+            attachmentsPattern: 'output/performance-reports.zip'
         )
-    }
-
-    success {
-        echo "🎉 Pipeline completed successfully"
-    }
-
-    failure {
-        echo "❌ Pipeline failed — see reasoning report for explanation"
     }
 }
 }
