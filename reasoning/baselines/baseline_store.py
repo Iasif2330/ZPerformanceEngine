@@ -1,5 +1,3 @@
-# reasoning/baselines/baseline_store.py
-
 import json
 from pathlib import Path
 from statistics import median, mean
@@ -19,6 +17,7 @@ class BaselineStore:
         self.policy = policy
         self.environment = environment
         self.load_profile = load_profile
+        self.verbose = True  # 👈 controls ALL baseline output
 
         self.storage_path = Path(policy["storage"]["path"]).resolve()
         self.storage_path.mkdir(parents=True, exist_ok=True)
@@ -28,6 +27,9 @@ class BaselineStore:
     # -------------------------
     # Public API
     # -------------------------
+
+    def set_verbose(self, enabled: bool):
+        self.verbose = enabled
 
     def save_run(self, run_id: str, client_metrics: dict) -> str:
         ts_dt = datetime.utcnow()
@@ -103,9 +105,10 @@ class BaselineStore:
         if len(selected) < min_required:
             return None
 
-        print("\n[Baseline] Rolling baseline selected runs:")
-        for s in selected:
-            print(f"  - run_id={s['run_id']} timestamp={s['timestamp']}")
+        if self.verbose:
+            print("\n[Baseline] Rolling baseline selected runs:")
+            for s in selected:
+                print(f"  - run_id={s['run_id']} timestamp={s['timestamp']}")
 
         metrics_with_ids = [
             (s["run_id"], s["client_metrics"]) for s in selected
@@ -117,7 +120,7 @@ class BaselineStore:
             # Human / explainable view
             "metrics": aggregated,
 
-            # 🔹 Numeric view for detectors (ONLY what is needed)
+            # Numeric view for detectors (ONLY what is needed)
             "numeric": {
                 "latency": {
                     "p95_ms": aggregated["latency"]["p95_ms"]["value"],
@@ -154,7 +157,8 @@ class BaselineStore:
         ):
             raise ValueError("Snapshot baseline scope mismatch")
 
-        print(f"\n[Baseline] Using snapshot baseline: {snapshot_name}")
+        if self.verbose:
+            print(f"\n[Baseline] Using snapshot baseline: {snapshot_name}")
 
         return {
             "metrics": data["client_metrics"],
@@ -213,7 +217,7 @@ class BaselineStore:
             numeric = [v for _, v in values]
             value = agg_fn(numeric)
 
-            if should_print:
+            if should_print and self.verbose:
                 print(f"\n[Baseline Evidence] {label}")
                 for run_id, v in values:
                     print(f"  - {run_id}: {v}")
@@ -239,35 +243,34 @@ class BaselineStore:
                 "avg_ms": explain(
                     "latency.avg_ms",
                     collect(lambda m: m["latency"]["avg_ms"]),
-                    should_print=False,   # 👈 hidden
+                    should_print=False,
                 ),
                 "p95_ms": explain(
                     "latency.p95_ms",
                     collect(lambda m: m["latency"]["p95_ms"]),
-                    should_print=True,    # 👈 shown
+                    should_print=True,   # 👈 ONLY THIS
                 ),
                 "p99_ms": explain(
                     "latency.p99_ms",
                     collect(lambda m: m["latency"]["p99_ms"]),
-                    should_print=False,   # 👈 hidden
+                    should_print=False,
                 ),
             },
             "throughput": {
                 "tps": explain(
                     "throughput.tps",
                     collect(lambda m: m["throughput"]["tps"]),
-                    should_print=False,   # 👈 hidden
+                    should_print=False,
                 ),
             },
             "errors": {
                 "error_rate_pct": explain(
                     "errors.error_rate_pct",
                     collect(lambda m: m["errors"]["error_rate_pct"]),
-                    should_print=True,    # 👈 shown
+                    should_print=True,   # 👈 ONLY THIS
                 ),
             },
         }
-
 
     def _enforce_retention(self):
         retention_cfg = self.policy["baseline"]["rolling"].get("retention", {})
@@ -284,5 +287,5 @@ class BaselineStore:
         for snapshot in snapshots[max_snapshots:]:
             path = self.storage_path / snapshot["_filename"]
             if path.exists():
-                print(f"[Retention] Deleting snapshot {path.name}")
+                # Silent retention (no noise)
                 path.unlink()
