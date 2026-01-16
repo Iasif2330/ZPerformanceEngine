@@ -35,27 +35,21 @@ class DecisionEngine:
         # 1. No baseline / learning phase
         # --------------------------------------------------
         if status == "NO_BASELINE":
-            if not self.rules.get("allow_no_baseline", False):
-                return self._review(
-                    "No baseline available for client metrics",
-                    confidence="LOW"
-                )
-
-            return self._accept(
+            return self._review(
                 "Baseline learning phase (no anomalies enforced)",
                 confidence="LOW"
             )
 
-        if status == "WEAK_BASELINE":
-            reasons.append(
-                f"Weak baseline (samples={baseline_meta.get('sample_count')})"
-            )
+                if status == "WEAK_BASELINE":
+                    reasons.append(
+                        f"Weak baseline (samples={baseline_meta.get('sample_count')})"
+                    )
 
         # --------------------------------------------------
         # 2. No client anomaly → auto accept
         # --------------------------------------------------
         if status == "OK":
-            return self._accept(
+            return self._review(
                 "No client-side anomalies detected",
                 confidence="HIGH"
             )
@@ -163,13 +157,6 @@ class DecisionEngine:
     # -------------------------
     # Helpers
     # -------------------------
-
-    def _accept(self, reason: str, confidence: str) -> Dict:
-        return {
-            "decision": "AUTO_ACCEPT",
-            "confidence": confidence,
-            "reasons": [reason]
-        }
 
     def _review(self, reason: str, confidence: str) -> Dict:
         return {
