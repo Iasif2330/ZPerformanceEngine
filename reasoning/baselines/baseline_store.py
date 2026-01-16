@@ -209,14 +209,15 @@ class BaselineStore:
     def _aggregate(self, metrics_with_ids: List[tuple], aggregation: str) -> dict:
         agg_fn = median if aggregation == "median" else mean
 
-        def explain(label: str, values: List[tuple]) -> dict:
+        def explain(label: str, values: List[tuple], should_print: bool) -> dict:
             numeric = [v for _, v in values]
             value = agg_fn(numeric)
 
-            print(f"\n[Baseline Evidence] {label}")
-            for run_id, v in values:
-                print(f"  - {run_id}: {v}")
-            print(f"  => {aggregation} = {value}")
+            if should_print:
+                print(f"\n[Baseline Evidence] {label}")
+                for run_id, v in values:
+                    print(f"  - {run_id}: {v}")
+                print(f"  => {aggregation} = {value}")
 
             return {
                 "aggregation": aggregation,
@@ -238,29 +239,35 @@ class BaselineStore:
                 "avg_ms": explain(
                     "latency.avg_ms",
                     collect(lambda m: m["latency"]["avg_ms"]),
+                    should_print=False,   # 👈 hidden
                 ),
                 "p95_ms": explain(
                     "latency.p95_ms",
                     collect(lambda m: m["latency"]["p95_ms"]),
+                    should_print=True,    # 👈 shown
                 ),
                 "p99_ms": explain(
                     "latency.p99_ms",
                     collect(lambda m: m["latency"]["p99_ms"]),
+                    should_print=False,   # 👈 hidden
                 ),
             },
             "throughput": {
                 "tps": explain(
                     "throughput.tps",
                     collect(lambda m: m["throughput"]["tps"]),
+                    should_print=False,   # 👈 hidden
                 ),
             },
             "errors": {
                 "error_rate_pct": explain(
                     "errors.error_rate_pct",
                     collect(lambda m: m["errors"]["error_rate_pct"]),
+                    should_print=True,    # 👈 shown
                 ),
             },
         }
+
 
     def _enforce_retention(self):
         retention_cfg = self.policy["baseline"]["rolling"].get("retention", {})
