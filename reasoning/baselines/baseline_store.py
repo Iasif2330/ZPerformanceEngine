@@ -4,26 +4,12 @@ import json
 from pathlib import Path
 from statistics import median, mean
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 
 class BaselineStore:
     """
     Stores and computes rolling or snapshot baselines for performance metrics.
-
-    Baselines are scoped by:
-      - environment
-      - load_profile
-
-    Rolling baseline semantics:
-      - Uses a sliding window of the most recent completed runs
-      - Excludes the current run to avoid self-poisoning
-      - Window advances on every run
-
-    Snapshots are:
-      - auto-created per run
-      - retention bounded
-      - metadata-driven (filenames are for humans only)
     """
 
     def __init__(self, policy: dict, environment: str, load_profile: str):
@@ -37,17 +23,13 @@ class BaselineStore:
         self.storage_path = Path(policy["storage"]["path"]).resolve()
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
+        self._validate_policy()
+
     # -------------------------
     # Public API
     # -------------------------
 
     def save_run(self, run_id: str, client_metrics: dict) -> str:
-        """
-        Save metrics for a single successful run and enforce retention.
-
-        Returns:
-            The snapshot filename created (for logging/debugging).
-        """
         timestamp = datetime.utcnow().isoformat(timespec="seconds").replace(":", "-")
 
         record = {
@@ -73,12 +55,6 @@ class BaselineStore:
         return filename
 
     def load_baseline(self) -> Optional[dict]:
-        """
-        Load baseline according to policy.
-
-        Returns:
-            Baseline metrics dict or None (learning phase).
-        """
         baseline_type = self.policy["baseline"]["type"]
 
         if baseline_type == "rolling":
@@ -93,6 +69,21 @@ class BaselineStore:
     # Internal helpers
     # -------------------------
 
+    def _validate_policy(self):
+        baseline = self.policy.get("baseline", {})
+        rolling = baseline.get("rolling", {})
+        retention = rolling.get("retention", {})
+
+        max_snapshots = retention.get("max_snapshots")
+        min_required = rolling.get("min_required")
+
+        if max_snapshots and min_required:
+            if max_snapshots < min_required + 1:
+                raise ValueError(
+                    "Invalid policy: retention.max_snapshots must be "
+                    ">= min_required + 1 for rolling baseline"
+                )
+
     def _compute_rolling_baseline(self) -> Optional[dict]:
         rolling = self.policy["baseline"]["rolling"]
         window_size = rolling["window_size"]
@@ -102,36 +93,31 @@ class BaselineStore:
         snapshots = self._load_scoped_snapshots()
         total_available = len(snapshots)
 
-        # Need at least (min_required + 1) snapshots
-        # because the most recent snapshot is excluded
         if total_available < min_required + 1:
             return None
 
-        # ------------------------------------------------
-        # TRUE ROLLING WINDOW
-        #
-        # snapshots are sorted: newest → oldest
-        # Exclude the most recent snapshot (current run)
-        # and take the next `window_size` snapshots
-        #
-        # Example:
-        # snapshots = [R5, R4, R3, R2]
-        # selected  = [R4, R3]  (window_size = 2)
-        # ------------------------------------------------
         selected = snapshots[1 : window_size + 1]
 
         if len(selected) < min_required:
             return None
 
-        metrics = [s["client_metrics"] for s in selected]
+        print("\n[Baseline] Rolling baseline selected runs:")
+        for s in selected:
+            print(f"  - run_id={s['run_id']} timestamp={s['timestamp']}")
+
+        metrics_with_ids = [
+            (s["run_id"], s["client_metrics"]) for s in selected
+        ]
+
+        aggregated = self._aggregate(metrics_with_ids, aggregation)
 
         return {
-            "metrics": self._aggregate(metrics, aggregation),
+            "metrics": aggregated,
             "meta": {
                 "type": "rolling",
                 "window_size": window_size,
                 "aggregation": aggregation,
-                "sample_count": len(metrics),
+                "sample_count": len(metrics_with_ids),
                 "snapshot_ids": [s["run_id"] for s in selected],
             },
         }
@@ -148,6 +134,14 @@ class BaselineStore:
         with path.open() as f:
             data = json.load(f)
 
+        if (
+            data.get("environment") != self.environment
+            or data.get("load_profile") != self.load_profile
+        ):
+            raise ValueError("Snapshot baseline scope mismatch")
+
+        print(f"\n[Baseline] Using snapshot baseline: {snapshot_name}")
+
         return {
             "metrics": data["client_metrics"],
             "meta": {
@@ -157,11 +151,7 @@ class BaselineStore:
             },
         }
 
-    def _load_scoped_snapshots(self) -> list[dict]:
-        """
-        Load snapshots matching current environment & load profile.
-        Sorted newest → oldest.
-        """
+    def _load_scoped_snapshots(self) -> List[dict]:
         snapshots = []
 
         for path in self.storage_path.glob("*.json"):
@@ -169,7 +159,6 @@ class BaselineStore:
                 with path.open() as f:
                     data = json.load(f)
             except Exception:
-                # Skip unreadable / corrupt files safely
                 continue
 
             if (
@@ -177,50 +166,71 @@ class BaselineStore:
                 and data.get("load_profile") == self.load_profile
             ):
                 data["_filename"] = path.name
+                data["_parsed_ts"] = datetime.fromisoformat(
+                    data["timestamp"].replace("-", ":", 2)
+                )
                 snapshots.append(data)
 
-        snapshots.sort(key=lambda x: x["timestamp"], reverse=True)
+        snapshots.sort(key=lambda x: x["_parsed_ts"], reverse=True)
         return snapshots
 
-    def _aggregate(self, metrics: list[dict], aggregation: str) -> dict:
-        """
-        Aggregate metrics into a baseline using median or average,
-        while exposing the exact samples used for transparency.
-        """
-
+    def _aggregate(self, metrics_with_ids: List[tuple], aggregation: str) -> dict:
         agg_fn = median if aggregation == "median" else mean
 
-        def explain(values: list[float]) -> dict:
+        def explain(label: str, values: List[tuple]) -> dict:
+            numeric = [v for _, v in values]
+            value = agg_fn(numeric)
+
+            print(f"\n[Baseline Evidence] {label}")
+            for run_id, v in values:
+                print(f"  - {run_id}: {v}")
+            print(f"  => {aggregation} = {value}")
+
             return {
                 "aggregation": aggregation,
-                "samples": values,
-                "value": agg_fn(values),
+                "samples": [{"run_id": rid, "value": v} for rid, v in values],
+                "value": value,
             }
 
-        lat_avg  = [m["latency"]["avg_ms"] for m in metrics]
-        lat_p95  = [m["latency"]["p95_ms"] for m in metrics]
-        lat_p99  = [m["latency"]["p99_ms"] for m in metrics]
-        tps_vals = [m["throughput"]["tps"] for m in metrics]
-        err_vals = [m["errors"]["error_rate_pct"] for m in metrics]
+        def collect(path):
+            collected = []
+            for run_id, m in metrics_with_ids:
+                try:
+                    collected.append((run_id, path(m)))
+                except Exception:
+                    continue
+            return collected
 
         return {
             "latency": {
-                "avg_ms": explain(lat_avg),
-                "p95_ms": explain(lat_p95),
-                "p99_ms": explain(lat_p99),
+                "avg_ms": explain(
+                    "latency.avg_ms",
+                    collect(lambda m: m["latency"]["avg_ms"]),
+                ),
+                "p95_ms": explain(
+                    "latency.p95_ms",
+                    collect(lambda m: m["latency"]["p95_ms"]),
+                ),
+                "p99_ms": explain(
+                    "latency.p99_ms",
+                    collect(lambda m: m["latency"]["p99_ms"]),
+                ),
             },
             "throughput": {
-                "tps": explain(tps_vals),
+                "tps": explain(
+                    "throughput.tps",
+                    collect(lambda m: m["throughput"]["tps"]),
+                ),
             },
             "errors": {
-                "error_rate_pct": explain(err_vals),
+                "error_rate_pct": explain(
+                    "errors.error_rate_pct",
+                    collect(lambda m: m["errors"]["error_rate_pct"]),
+                ),
             },
         }
 
     def _enforce_retention(self):
-        """
-        Enforce max snapshot retention per environment + load profile.
-        """
         retention_cfg = self.policy["baseline"]["rolling"].get("retention", {})
         max_snapshots = retention_cfg.get("max_snapshots")
 
@@ -232,9 +242,8 @@ class BaselineStore:
         if len(snapshots) <= max_snapshots:
             return
 
-        # snapshots are sorted newest → oldest
-        # delete anything beyond max_snapshots
         for snapshot in snapshots[max_snapshots:]:
             path = self.storage_path / snapshot["_filename"]
             if path.exists():
+                print(f"[Retention] Deleting snapshot {path.name}")
                 path.unlink()
