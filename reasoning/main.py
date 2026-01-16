@@ -569,9 +569,11 @@ def main():
     section("Anomaly Detection")
 
 
+    baseline = baseline_store.load_baseline()
+
     anomaly_result = AnomalyDetector(client_metrics_rules).detect(
-        current=client_metrics,
-        baseline=baseline
+        client_metrics=client_metrics,
+        baseline=baseline["numeric"],   # ✅ correct
     )
 
     # Expose baseline meta to anomaly result for downstream reporting
