@@ -17,7 +17,7 @@ pipeline {
         IMAGE_NAME = "zperformance-engine"
         WORKDIR    = "/workspace"
         GRAFANA_URL    = "https://grafana-prod.ontic.ai"
-        GRAFANA_DS_UID = "prometheus"
+        GRAFANA_DS_UID = ""
     }
 
     stages {
@@ -325,7 +325,7 @@ pipeline {
 
     post {
     always {
-        emailext(
+        mail(
             from: 'aansari_c@ontic.co',
             to: 'aansari_c@ontic.co',
             subject: "[Jenkins] ${env.JOB_NAME} #${env.BUILD_NUMBER} — ${currentBuild.currentResult}",
@@ -339,12 +339,16 @@ Load Profile: ${env.LOAD_PROFILE}
 
 Build URL:
 ${env.BUILD_URL}
-
-Attached:
-- performance-reports.zip
-""",
-            attachmentsPattern: 'output/performance-reports.zip'
+"""
         )
+    }
+
+    success {
+        echo "🎉 Pipeline completed successfully"
+    }
+
+    failure {
+        echo "❌ Pipeline failed — see reasoning report for explanation"
     }
 }
 }
