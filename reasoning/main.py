@@ -206,7 +206,6 @@ def print_client_host_metrics(host_telemetry, host_validation, rules):
 def explain_server_states(server_metrics, server_states, server_rules):
     """
     Generate one-line, data-backed explanations for each server state.
-    SAFE against missing metrics & rule mismatches.
     """
 
     # Build metric lookup
@@ -216,74 +215,67 @@ def explain_server_states(server_metrics, server_states, server_rules):
     }
 
     rules = server_rules.get("server_rules", {})
+
     explanations = {}
 
-    # -----------------------------
-    # server_saturated
-    # -----------------------------
+    # Pull metric values safely
     cpu = metrics.get("cpu_pct")
     mem = metrics.get("mem_pct")
     cpu_throttle = metrics.get("cpu_throttle_pct")
     mem_pressure = metrics.get("mem_pressure_pct")
 
+    # Pull thresholds safely
     cpu_limit = rules.get("cpu_pct", {}).get("minor_abs")
     mem_limit = rules.get("mem_pct", {}).get("minor_abs")
-    throttle_limit = rules.get("cpu_throttle_pct", {}).get("minor_abs")
-    pressure_limit = rules.get("mem_pressure_pct", {}).get("minor_abs")
+    cpu_throttle_limit = rules.get("cpu_throttle_pct", {}).get("minor_abs")
+    mem_pressure_limit = rules.get("mem_pressure_pct", {}).get("minor_abs")
 
+    # -------------------------------
+    # server_saturated
+    # -------------------------------
     if server_states.get("server_saturated"):
         explanations["server_saturated"] = (
-            "One or more resource saturation thresholds were exceeded "
-            "(CPU, memory, throttling, or memory pressure)."
+            f"CPU {cpu}% ≥ {cpu_limit}% or Memory {mem}% ≥ {mem_limit}%"
         )
     else:
-        parts = []
-        if cpu is not None and cpu_limit is not None:
-            parts.append(f"CPU {cpu}% < {cpu_limit}%")
-        if mem is not None and mem_limit is not None:
-            parts.append(f"Memory {mem}% < {mem_limit}%")
-        if cpu_throttle is not None and throttle_limit is not None:
-            parts.append(f"CPU throttle {cpu_throttle}% < {throttle_limit}%")
-        if mem_pressure is not None and pressure_limit is not None:
-            parts.append(f"Memory pressure {mem_pressure}% < {pressure_limit}%")
-
-        explanations["server_saturated"] = ", ".join(parts) if parts else "No saturation signals available"
-
-    # -----------------------------
-    # server_slow
-    # -----------------------------
-    # You currently DO NOT have server-side latency metrics
-    if server_states.get("server_slow"):
-        explanations["server_slow"] = "Server-side latency thresholds were exceeded"
-    else:
-        explanations["server_slow"] = (
-            "No server-side latency metrics exceeded thresholds "
-            "(application-level latency metrics not available)."
+        explanations["server_saturated"] = (
+            f"CPU {cpu}% < {cpu_limit}%, Memory {mem}% < {mem_limit}%"
         )
 
-    # -----------------------------
-    # server_erroring
-    # -----------------------------
-    # You currently DO NOT have server-side HTTP error counters
-    if server_states.get("server_erroring"):
-        explanations["server_erroring"] = "Server-side error counters detected failures"
+    # -------------------------------
+    # server_throttled
+    # -------------------------------
+    if server_states.get("server_throttled"):
+        explanations["server_throttled"] = (
+            f"CPU throttling {cpu_throttle}% ≥ {cpu_throttle_limit}%"
+        )
     else:
-        explanations["server_erroring"] = (
-            "No server-side HTTP error metrics were observed "
-            "(application-level error metrics not available)."
+        explanations["server_throttled"] = (
+            f"CPU throttling {cpu_throttle}% < {cpu_throttle_limit}%"
         )
 
-    # -----------------------------
+    # -------------------------------
+    # server_mem_pressure
+    # -------------------------------
+    if server_states.get("server_mem_pressure"):
+        explanations["server_mem_pressure"] = (
+            f"Memory pressure {mem_pressure}% ≥ {mem_pressure_limit}%"
+        )
+    else:
+        explanations["server_mem_pressure"] = (
+            f"Memory pressure {mem_pressure}% < {mem_pressure_limit}%"
+        )
+
+    # -------------------------------
     # server_healthy
-    # -----------------------------
+    # -------------------------------
     if server_states.get("server_healthy"):
         explanations["server_healthy"] = (
-            "CPU, memory, throttling, and memory pressure remained within limits "
-            "during the test window."
+            "No CPU saturation, memory saturation, throttling, or memory pressure observed"
         )
     else:
         explanations["server_healthy"] = (
-            "One or more server stress conditions were observed during the test window."
+            "One or more infrastructure stress signals detected"
         )
 
     return explanations
