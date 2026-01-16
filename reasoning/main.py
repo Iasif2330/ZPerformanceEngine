@@ -567,9 +567,7 @@ def main():
     # Anomaly Detection
     # -----------------------------
     section("Anomaly Detection")
-
-
-    baseline = baseline_store.load_baseline()
+    baseline_store.set_verbose(False)
 
     # Build ONLY what the detector needs (p95 + error rate)
     detector_baseline = {
