@@ -7,32 +7,29 @@ class Correlator:
 
     DESIGN PRINCIPLES:
     - Server correlation is NOT baseline-driven
-    - Absolute thresholds only (capacity & health signals)
-    - All server metrics are evaluated every time
-    - Client metrics are NOT used here
-    - Output is state-based, not metric-based
+    - Absolute thresholds only
+    - State-based output (not metric-based)
+    - Uses ONLY infra-level signals (no APM)
     """
 
     def correlate(
         self,
         server_metrics: Dict,
-        server_baseline: Dict | None,  # kept for backward compatibility
+        server_baseline: Dict | None,  # backward compatibility
         rules: Dict
     ) -> Dict:
         """
-        Correlate server metrics and derive server states.
-
         Returns:
-            {
-              status: CONFIRMED | NOT_CONFIRMED | NOT_AVAILABLE
-              states: {...}
-              signals: [...]
-            }
+        {
+          status: CONFIRMED | NOT_CONFIRMED | NOT_AVAILABLE
+          states: {...}
+          signals: [...]
+        }
         """
 
-        # --------------------------------------------------
-        # No server data available
-        # --------------------------------------------------
+        # -------------------------------
+        # No server data
+        # -------------------------------
         if server_metrics is None or server_metrics.get("status") != "AVAILABLE":
             return {
                 "status": "NOT_AVAILABLE",
@@ -44,39 +41,29 @@ class Correlator:
 
         signals: List[Dict] = []
 
-        # --------------------------------------------------
-        # Server state flags (derived, not guessed)
-        # --------------------------------------------------
+        # -------------------------------
+        # Initialize server states
+        # -------------------------------
         states = {
-            "server_saturated": False,
-            "server_slow": False,
-            "server_erroring": False,
-            "server_healthy": True,  # optimistic default
+            "server_saturated": False,     # cpu_pct OR mem_pct
+            "server_throttled": False,     # cpu_throttle_pct
+            "server_mem_pressure": False,  # mem_pressure_pct
+            "server_healthy": True,        # disproved later
         }
 
-        # --------------------------------------------------
-        # Evaluate all server metrics
-        # --------------------------------------------------
+        # -------------------------------
+        # Evaluate each server signal
+        # -------------------------------
         for sig in server_metrics.get("signals", []):
             metric = sig.get("metric")
             current = sig.get("current")
 
-            # Defensive: skip unknown or missing data
-            if metric is None or current is None:
+            rule = ruleset.get(metric)
+            if rule is None or current is None:
                 continue
 
-            rule = ruleset.get(metric)
-            if not rule:
-                continue  # metric not governed by rules
+            severity = self._assign_severity(current, rule)
 
-            severity = self._assign_severity(
-                current=current,
-                rule=rule
-            )
-
-            # --------------------------------------------------
-            # Record violating signal
-            # --------------------------------------------------
             if severity:
                 signals.append({
                     "metric": metric,
@@ -84,25 +71,25 @@ class Correlator:
                     "severity": severity,
                 })
 
-                # ----------------------------------------------
-                # Derive server states (metric → state mapping)
-                # ----------------------------------------------
-                if metric in ("cpu", "mem", "threads"):
+                # ---------------------------
+                # Derive states (OBJECTIVE)
+                # ---------------------------
+                if metric in ("cpu_pct", "mem_pct"):
                     states["server_saturated"] = True
 
-                if metric == "httplatp95":
-                    states["server_slow"] = True
+                if metric == "cpu_throttle_pct":
+                    states["server_throttled"] = True
 
-                if metric == "http5xx":
-                    states["server_erroring"] = True
+                if metric == "mem_pressure_pct":
+                    states["server_mem_pressure"] = True
 
-        # --------------------------------------------------
-        # Final state resolution
-        # --------------------------------------------------
+        # -------------------------------
+        # Final health resolution
+        # -------------------------------
         if (
             states["server_saturated"]
-            or states["server_slow"]
-            or states["server_erroring"]
+            or states["server_throttled"]
+            or states["server_mem_pressure"]
         ):
             states["server_healthy"] = False
 
@@ -114,22 +101,15 @@ class Correlator:
             "signals": signals,
         }
 
-    # --------------------------------------------------
-    # Internal helpers
-    # --------------------------------------------------
-
-    def _assign_severity(
-        self,
-        current: float,
-        rule: Dict
-    ) -> str | None:
+    # -------------------------------
+    # Helpers
+    # -------------------------------
+    def _assign_severity(self, current: float, rule: Dict) -> str | None:
         """
-        Apply absolute server thresholds.
-
-        Expected rule format:
+        rule format:
         {
-          minor_abs: <number>,
-          severe_abs: <number>
+          minor_abs: number,
+          severe_abs: number
         }
         """
 
