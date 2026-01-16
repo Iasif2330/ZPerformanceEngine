@@ -52,12 +52,24 @@ EXPLANATION_RULES = [
     {
         "when": {
             "has_latency": True,
-            "server_slow": True
+            "server_throttled": True
         },
         "explain": [
             "User-facing latency increased during the test.",
-            "Server-side latency was elevated.",
-            "The regression may be caused by slow execution paths or downstream dependencies."
+            "CPU throttling was observed on the server during the same window.",
+            "Latency regression may be caused by CPU scheduling pressure or throttling."
+        ]
+    },
+
+    {
+        "when": {
+            "has_latency": True,
+            "server_mem_pressure": True
+        },
+        "explain": [
+            "User-facing latency increased during the test.",
+            "Memory pressure was observed on the server.",
+            "Latency regression may be caused by memory contention or reclamation overhead."
         ]
     },
 
@@ -68,8 +80,8 @@ EXPLANATION_RULES = [
         },
         "explain": [
             "User-facing latency increased during the test.",
-            "Server capacity and latency metrics remained healthy.",
-            "Latency regression is unlikely to be caused by server resource constraints."
+            "Server capacity and health metrics remained within normal limits.",
+            "Latency regression is unlikely to be caused by infrastructure constraints."
         ]
     },
 
@@ -127,12 +139,11 @@ class ExplanationEngine:
     ) -> List[str]:
 
         # --------------------------------------------------
-        # Handle trivial / safe cases
+        # Safe early exits
         # --------------------------------------------------
         if client_anomaly.get("status") in ("OK", "NO_BASELINE"):
             return [
-                "No client-side performance anomalies were detected "
-                "during this test run."
+                "No client-side performance anomalies were detected during this test run."
             ]
 
         facts = self._extract_facts(client_anomaly, server_correlation)
@@ -145,12 +156,12 @@ class ExplanationEngine:
             if self._matches(rule["when"], facts):
                 explanation.extend(rule["explain"])
 
-                # Error-dominant cases terminate early by design
+                # Error-dominant rules short-circuit
                 if facts.get("has_errors"):
                     break
 
         # --------------------------------------------------
-        # Fallback (should be rare)
+        # Fallback (now truly rare)
         # --------------------------------------------------
         if not explanation:
             explanation.append(
@@ -169,16 +180,12 @@ class ExplanationEngine:
         client_anomaly: Dict,
         server_correlation: Dict
     ) -> Dict:
-        """
-        Convert raw anomaly + server correlation data
-        into boolean facts usable by invariant rules.
-        """
 
         anomalies = client_anomaly.get("anomalies", {})
         states = server_correlation.get("states", {})
 
         return {
-            # ---------------- Client facts ----------------
+            # -------- Client facts --------
             "has_errors": any(
                 v.get("metric") == "errors.error_rate_pct"
                 for v in anomalies.values()
@@ -194,16 +201,14 @@ class ExplanationEngine:
                 for v in anomalies.values()
             ),
 
-            # ---------------- Server facts ----------------
+            # -------- Server facts --------
             "server_healthy": states.get("server_healthy", False),
             "server_saturated": states.get("server_saturated", False),
-            "server_slow": states.get("server_slow", False),
+            "server_throttled": states.get("server_throttled", False),
+            "server_mem_pressure": states.get("server_mem_pressure", False),
             "server_erroring": states.get("server_erroring", False),
         }
 
     @staticmethod
     def _matches(conditions: Dict, facts: Dict) -> bool:
-        """
-        Rule match = all required facts match exactly.
-        """
         return all(facts.get(k) == v for k, v in conditions.items())
