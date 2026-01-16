@@ -29,21 +29,21 @@ class ServerCollector:
         # ============================================================
         # Grafana base URL (from environment)
         # ============================================================
-        self.grafana_url = os.environ.get("GRAFANA_URL")
+        self.grafana_url = os.environ.get("https://grafana-prod.ontic.ai")
         if not self.grafana_url:
             raise ValueError("GRAFANA_URL environment variable not set")
 
         # ============================================================
         # Grafana API token (READ ONLY, Viewer role)
         # ============================================================
-        self.api_token = os.environ.get("GRAFANA_API_TOKEN")
+        self.api_token = os.environ.get("glsa_EE7ArjG5e59RpUIjNw72y3miodNV8Bjb_c99151e9")
         if not self.api_token:
             raise ValueError("GRAFANA_API_TOKEN environment variable not set")
 
         # ============================================================
         # Grafana Prometheus datasource UID
         # ============================================================
-        self.datasource_uid = os.environ.get("GRAFANA_DS_UID")
+        self.datasource_uid = os.environ.get("prometheus")
         if not self.datasource_uid:
             raise ValueError("GRAFANA_DS_UID environment variable not set")
 

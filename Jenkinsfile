@@ -16,8 +16,8 @@ pipeline {
         DOCKER_CLI = "/Applications/Docker.app/Contents/Resources/bin/docker"
         IMAGE_NAME = "zperformance-engine"
         WORKDIR    = "/workspace"
-        GRAFANA_URL    = "https://grafana-stage.qaontic.com"
-        GRAFANA_DS_UID = "P6A158385E620A8AA"
+        GRAFANA_URL    = "https://grafana-prod.ontic.ai"
+        GRAFANA_DS_UID = "prometheus"
     }
 
     stages {
