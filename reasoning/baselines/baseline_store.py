@@ -114,7 +114,19 @@ class BaselineStore:
         aggregated = self._aggregate(metrics_with_ids, aggregation)
 
         return {
+            # Human / explainable view
             "metrics": aggregated,
+
+            # 🔹 Numeric view for detectors (ONLY what is needed)
+            "numeric": {
+                "latency": {
+                    "p95_ms": aggregated["latency"]["p95_ms"]["value"],
+                },
+                "errors": {
+                    "error_rate_pct": aggregated["errors"]["error_rate_pct"]["value"],
+                },
+            },
+
             "meta": {
                 "type": "rolling",
                 "window_size": window_size,
@@ -146,6 +158,14 @@ class BaselineStore:
 
         return {
             "metrics": data["client_metrics"],
+            "numeric": {
+                "latency": {
+                    "p95_ms": data["client_metrics"]["latency"]["p95_ms"],
+                },
+                "errors": {
+                    "error_rate_pct": data["client_metrics"]["errors"]["error_rate_pct"],
+                },
+            },
             "meta": {
                 "type": "snapshot",
                 "name": snapshot_name,
@@ -169,11 +189,9 @@ class BaselineStore:
             ):
                 data["_filename"] = path.name
 
-                # Backward-compatible timestamp handling
                 if "timestamp_epoch" in data:
                     data["_sort_ts"] = data["timestamp_epoch"]
                 else:
-                    # Fallback for old snapshots (best-effort)
                     try:
                         date, time = data["timestamp"].split("T")
                         time = time.replace("-", ":")
