@@ -26,7 +26,10 @@ class Correlator:
           status: CONFIRMED | NOT_CONFIRMED | NOT_AVAILABLE
           states: {...}
           signals: [...]
-          attribution: {...}
+          attribution: {
+              distribution: {...},
+              reason: str
+          }
         }
         """
 
@@ -100,7 +103,7 @@ class Correlator:
         status = "CONFIRMED" if signals else "NOT_CONFIRMED"
 
         # --------------------------------------------------
-        # Bayesian-style attribution (SAFE, INLINE)
+        # Attribution (probabilistic, explainable)
         # --------------------------------------------------
         attribution = self._derive_attribution(states)
 
@@ -136,48 +139,98 @@ class Correlator:
     def _derive_attribution(self, states: Dict) -> Dict:
         """
         Derive probabilistic attribution from server states.
-        This does NOT decide pass/fail — only likelihoods.
+
+        IMPORTANT:
+        - This does NOT decide pass/fail
+        - Percentages are relative likelihoods
+        - Explanation is written for non-experts
         """
 
+        # --------------------------------------------------
+        # Base priors (roughly equal)
+        # --------------------------------------------------
         attribution = {
             "capacity": 0.33,
             "execution": 0.33,
             "non_infra": 0.34,
         }
 
-        reasons = []
+        # Track which signals influenced the outcome
+        saw_throttling = False
+        saw_saturation = False
+        saw_mem_pressure = False
+        saw_healthy = False
 
+        # --------------------------------------------------
+        # Evidence-based adjustments
+        # --------------------------------------------------
         if states.get("server_saturated"):
             attribution["capacity"] += 0.30
             attribution["non_infra"] -= 0.15
-            reasons.append("server saturation increased capacity likelihood")
+            saw_saturation = True
 
         if states.get("server_throttled"):
             attribution["execution"] += 0.25
             attribution["capacity"] += 0.10
-            reasons.append("CPU throttling increased execution and capacity likelihood")
+            saw_throttling = True
 
         if states.get("server_mem_pressure"):
             attribution["capacity"] += 0.25
             attribution["execution"] += 0.05
-            reasons.append("memory pressure increased capacity likelihood")
+            saw_mem_pressure = True
 
         if states.get("server_healthy"):
             attribution["non_infra"] += 0.30
             attribution["capacity"] -= 0.15
             attribution["execution"] -= 0.15
-            reasons.append("healthy infrastructure increased non-infra likelihood")
+            saw_healthy = True
 
-        # Clamp
+        # --------------------------------------------------
+        # Clamp (safety)
+        # --------------------------------------------------
         for k in attribution:
             attribution[k] = max(attribution[k], 0.0)
 
+        # --------------------------------------------------
+        # Normalize to percentages
+        # --------------------------------------------------
         total = sum(attribution.values())
         if total > 0:
             for k in attribution:
                 attribution[k] = round(attribution[k] / total, 2)
 
+        # --------------------------------------------------
+        # Beginner-friendly rationale
+        # --------------------------------------------------
+        if saw_throttling:
+            reason = (
+                "CPU throttling was observed on the server, which usually indicates "
+                "execution-related inefficiencies (such as thread contention or GC activity). "
+                "This makes execution issues the most likely cause, with some contribution "
+                "from capacity limits, while non-infrastructure causes are less likely."
+            )
+        elif saw_saturation:
+            reason = (
+                "Server resource usage reached saturation levels, which points strongly "
+                "to capacity constraints as the primary cause of the observed behavior."
+            )
+        elif saw_mem_pressure:
+            reason = (
+                "Memory pressure was observed, suggesting possible memory contention or "
+                "inefficient memory usage contributing to performance degradation."
+            )
+        elif saw_healthy:
+            reason = (
+                "Server infrastructure remained healthy during the test, which makes "
+                "application-level or external (non-infrastructure) causes more likely."
+            )
+        else:
+            reason = (
+                "No strong server-side stress signals were detected, so no single cause "
+                "dominates the attribution."
+            )
+
         return {
             "distribution": attribution,
-            "reason": "; ".join(reasons) if reasons else "no significant server signals"
+            "reason": reason
         }
