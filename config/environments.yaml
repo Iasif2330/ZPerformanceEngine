@@ -32,11 +32,3 @@ dev:
     allfeeds: "data/dev/allfeeds-payload.json"
     crimedata: "data/dev/crimedata-payload.json"
     riskintelligence: "data/dev/riskintelligence-payload.json"
-
-autoprod1:
-  baseUrl: "https://autoprod1.ontic.ai"
-  host: "autoprod1.ontic.ai"
-  usersFile: "config/users/autoprod1.csv"
-  payloads:
-    login: "data/login-payload.json"
-    allfeeds: "data/autoprod1/allfeeds-payload.json"
