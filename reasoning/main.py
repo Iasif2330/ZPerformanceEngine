@@ -573,26 +573,33 @@ def main():
     baseline_store.set_verbose(False)
 
     # Build ONLY what the detector needs (p95 + error rate)
-    detector_baseline = {
-        "metrics": {
-            "latency": {
-                "p95_ms": baseline["numeric"]["latency"]["p95_ms"],
-                "p99_ms": baseline["numeric"]["latency"]["p95_ms"],  # dummy, unused
+    if baseline is None:
+        anomaly_result = {
+            "status": "NO_BASELINE",
+            "anomalies": {},
+        }
+    else:
+        # Build ONLY what the detector needs (p95 + error rate)
+        detector_baseline = {
+            "metrics": {
+                "latency": {
+                    "p95_ms": baseline["numeric"]["latency"]["p95_ms"],
+                    "p99_ms": baseline["numeric"]["latency"]["p95_ms"],  # dummy, unused
+                },
+                "errors": {
+                    "error_rate_pct": baseline["numeric"]["errors"]["error_rate_pct"],
+                },
+                "throughput": {
+                    "tps": float("inf"),  # dummy, prevents false drop
+                },
             },
-            "errors": {
-                "error_rate_pct": baseline["numeric"]["errors"]["error_rate_pct"],
-            },
-            "throughput": {
-                "tps": float("inf"),  # dummy, prevents false drop
-            },
-        },
-        "meta": baseline["meta"],
-    }
+            "meta": baseline["meta"],
+        }
 
-    anomaly_result = AnomalyDetector(client_metrics_rules).detect(
-        client_metrics,
-        detector_baseline,
-    )
+        anomaly_result = AnomalyDetector(client_metrics_rules).detect(
+            client_metrics,
+            detector_baseline,
+        )
 
     # Expose baseline meta to anomaly result for downstream reporting
     if isinstance(baseline, dict) and "meta" in baseline:
