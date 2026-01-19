@@ -139,38 +139,36 @@ class Correlator:
         This does NOT decide pass/fail — only likelihoods.
         """
 
-        # --------------------------------------------------
-        # Base priors (uninformative)
-        # --------------------------------------------------
         attribution = {
             "capacity": 0.33,
             "execution": 0.33,
             "non_infra": 0.34,
         }
 
-        # --------------------------------------------------
-        # Evidence updates
-        # --------------------------------------------------
+        reasons = []
+
         if states.get("server_saturated"):
             attribution["capacity"] += 0.30
             attribution["non_infra"] -= 0.15
+            reasons.append("server saturation increased capacity likelihood")
 
         if states.get("server_throttled"):
             attribution["execution"] += 0.25
             attribution["capacity"] += 0.10
+            reasons.append("CPU throttling increased execution and capacity likelihood")
 
         if states.get("server_mem_pressure"):
             attribution["capacity"] += 0.25
             attribution["execution"] += 0.05
+            reasons.append("memory pressure increased capacity likelihood")
 
         if states.get("server_healthy"):
             attribution["non_infra"] += 0.30
             attribution["capacity"] -= 0.15
             attribution["execution"] -= 0.15
+            reasons.append("healthy infrastructure increased non-infra likelihood")
 
-        # --------------------------------------------------
-        # Clamp + normalize
-        # --------------------------------------------------
+        # Clamp
         for k in attribution:
             attribution[k] = max(attribution[k], 0.0)
 
@@ -179,4 +177,7 @@ class Correlator:
             for k in attribution:
                 attribution[k] = round(attribution[k] / total, 2)
 
-        return attribution
+        return {
+            "distribution": attribution,
+            "reason": "; ".join(reasons) if reasons else "no significant server signals"
+        }
