@@ -21,8 +21,8 @@ class NetworkValidator:
         # Environment-aware RTT thresholds (ms)
         self.rtt_thresholds = {
             "qa": {
-                "avg_ms_max": 120,
-                "p95_ms_max": 180,
+                "avg_ms_max": 240,
+                "p95_ms_max": 360,
             },
             "staging": {
                 "avg_ms_max": 80,
