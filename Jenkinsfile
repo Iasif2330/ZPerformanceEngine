@@ -17,7 +17,7 @@ pipeline {
         IMAGE_NAME = "zperformance-engine"
         WORKDIR    = "/workspace"
         GRAFANA_URL    = "https://grafana-prod.ontic.ai"
-        GRAFANA_DS_UID = "prometheus"
+        GRAFANA_DS_UID = ""
     }
 
     stages {
@@ -103,18 +103,14 @@ pipeline {
                     // else: NO -Dapis → engine runs ALL APIs
 
                     // ============================
-                    // Resolve TARGET_HOST (ROBUST)
+                    // Resolve TARGET_HOST
                     // ============================
                     def host = sh(
                         script: """
                             awk '
-                                /^${envValue}:/ { in_env=1; next }
-                                in_env && /^[[:space:]]*host:/ {
-                                    gsub(/"/, "", \$2)
-                                    print \$2
-                                    exit
-                                }
-                                in_env && /^[^[:space:]]/ { exit }
+                                \$1 == "${envValue}:" { in_env=1; next }
+                                in_env && \$1 == "host:" { print \$2; exit }
+                                in_env && /^[^ ]/ { exit }
                             ' config/environments.yaml
                         """,
                         returnStdout: true
@@ -123,8 +119,6 @@ pipeline {
                     if (!host) {
                         error "Failed to resolve host for ENVIRONMENT '${envValue}'"
                     }
-
-                    echo "Resolved TARGET_HOST=${host}"
 
                     env.TARGET_HOST  = host
                     env.CLI_ARGS     = cliArgs
