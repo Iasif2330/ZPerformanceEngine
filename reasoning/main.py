@@ -570,7 +570,7 @@ def main():
     # Anomaly Detection
     # -----------------------------
     section("Anomaly Detection")
-    baseline_store.set_verbose(False)
+    # baseline_store.set_verbose(False)
 
     # Build ONLY what the detector needs (p95 + error rate)
     if baseline is None:
