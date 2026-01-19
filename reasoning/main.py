@@ -658,10 +658,16 @@ def main():
     attribution = server_correlation.get("attribution", {})
 
     if attribution:
+        dist = attribution.get("distribution", {})
+        reason = attribution.get("reason")
+
         print("\n  Likely Cause Attribution:", flush=True)
-        for cause, prob in attribution.items():
+        for cause, prob in dist.items():
             pct = int(prob * 100)
             print(f"     • {cause}: {pct}%", flush=True)
+
+        if reason:
+            print(f"\n     ↳ Attribution rationale: {reason}", flush=True)
 
     states = server_correlation.get("states", {})
     state_explanations = explain_server_states(
