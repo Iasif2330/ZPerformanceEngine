@@ -17,7 +17,7 @@ pipeline {
         IMAGE_NAME = "zperformance-engine"
         WORKDIR    = "/workspace"
         GRAFANA_URL    = "https://grafana-prod.ontic.ai"
-        GRAFANA_DS_UID = ""
+        GRAFANA_DS_UID = "prometheus"
     }
 
     stages {
