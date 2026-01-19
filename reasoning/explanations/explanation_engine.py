@@ -172,14 +172,18 @@ class ExplanationEngine:
         # Add attribution summary (human-readable)
         # --------------------------------------------------
         attribution = server_correlation.get("attribution")
-        if attribution:
-            top = max(attribution, key=attribution.get)
-            pct = int(attribution[top] * 100)
 
-            explanation.append(
-                f"Most likely cause category: {top.replace('_', ' ')} "
-                f"({pct}% likelihood based on infrastructure signals)."
-            )
+        if attribution:
+            dist = attribution.get("distribution", {})
+
+            if dist:
+                top = max(dist, key=dist.get)
+                pct = int(dist[top] * 100)
+
+                explanation.append(
+                    f"Most likely cause category: {top.replace('_', ' ')} "
+                    f"({pct}% likelihood based on infrastructure signals)."
+                )
         return explanation
 
     # --------------------------------------------------
