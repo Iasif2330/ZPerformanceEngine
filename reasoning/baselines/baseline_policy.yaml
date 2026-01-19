@@ -1,5 +1,5 @@
 baseline:
-  type: rolling
+  type: snapshot
 
   rolling:
     window_size: 2          # MUST be >1 for stability
@@ -10,7 +10,7 @@ baseline:
       max_snapshots: 3    # retain more than window to absorb noise
 
   snapshot:
-    name: null
+    name: 2026-01-14T05-22-49__autoprod__baseline-minimal__jenkins-local.json
 
 scope:
   match_current_run: true
