@@ -3,6 +3,8 @@ groups:
     - allfeeds
     - crimedata
     - riskintelligence
+    - crimeevents
+    - feedpreview
 
   login_only:
     - login
