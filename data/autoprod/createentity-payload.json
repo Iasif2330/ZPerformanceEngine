@@ -2,8 +2,8 @@
   "group": "ASSET",
   "data": {
     "type": "ASSET_ACTION",
-    "category": "interest",
     "assetType": "ENTITY",
+    "category": "interest",
     "operation": "CREATE"
   },
   "actions": [
@@ -22,13 +22,13 @@
         },
         {
           "opType": "SET",
-          "field": "visibility",
-          "value": "{\"type\":\"PUBLIC\"}"
+          "field": "name",
+          "value": "Test Entity 001"
         },
         {
-          "opType": "ADD",
-          "field": "names",
-          "value": "{\"data\":[{\"firstName\"cccc:\"Zyphorinimin\",\"lastName\":\"Quenlaximax\"}]}"
+          "opType": "SET",
+          "field": "visibility",
+          "value": "{\"type\":\"PUBLIC\"}"
         }
       ]
     }
