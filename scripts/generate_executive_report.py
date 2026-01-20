@@ -41,7 +41,7 @@ def r(v, d=2):
     return 0
 
 # --------------------------------------------------
-# Extract totals (UNCHANGED)
+# Extract totals (UNCHANGED SOURCE)
 # --------------------------------------------------
 total = stats.get("Total", {})
 
@@ -51,7 +51,7 @@ observed_error_pct = r(total.get("errorPct", 0))
 overall_throughput = r(total.get("throughput", 0), 2)
 
 # --------------------------------------------------
-# OPTIONAL: Classify errors using results.jtl (SAFE ADDITION)
+# Classify errors using results.jtl (DEFENSIBLE)
 # --------------------------------------------------
 functional_errors = 0
 performance_errors = 0
@@ -68,7 +68,7 @@ if os.path.exists(RESULTS_JTL):
                 code = row.get("responseCode", "")
                 msg = row.get("responseMessage", "").lower()
 
-                # Conservative, defensible classification
+                # Conservative & defensible rules
                 if code.startswith("4"):
                     functional_errors += 1
                 elif "timeout" in msg or "timed out" in msg:
@@ -78,15 +78,22 @@ if os.path.exists(RESULTS_JTL):
                 else:
                     unknown_errors += 1
     except Exception:
-        # Never break report generation due to JTL parsing
         functional_errors = performance_errors = unknown_errors = 0
+
+# --------------------------------------------------
+# Derived failure rates (NEW, CORRECT)
+# --------------------------------------------------
+functional_error_pct = r((functional_errors / total_requests) * 100) if total_requests else 0
+performance_error_pct = r((performance_errors / total_requests) * 100) if total_requests else 0
+
+# Run validity decision
+run_valid_for_perf = performance_error_pct > 0 or observed_error_count == 0
 
 # --------------------------------------------------
 # Build Statistics table + Observations (UNCHANGED)
 # --------------------------------------------------
 statistics_rows = []
 observations = []
-
 failing_apis = []
 p95_rank = []
 
@@ -167,33 +174,36 @@ if p95_rank:
     )
 
 # --------------------------------------------------
-# Errors Section (NOW SEPARATED, BUT SAFE)
+# Errors Section (CORRECTED)
 # --------------------------------------------------
-errors_section = ""
-
-if observed_error_count > 0:
-    errors_section = f"""
+errors_section = f"""
 <h2>Observed Failures</h2>
-<p>
-A total of <strong>{observed_error_count}</strong> unsuccessful samples were recorded
-({observed_error_pct}% of all executed requests).
-</p>
+<ul>
+  <li><strong>JMeter-observed failure rate:</strong> {observed_error_pct}%</li>
+  <li><strong>Functional / business failures:</strong> {functional_error_pct}%</li>
+  <li><strong>Performance-related failures:</strong> {performance_error_pct}%</li>
+</ul>
 """
 
-    if os.path.exists(RESULTS_JTL):
-        errors_section += f"""
-<ul>
-  <li><strong>Performance-related failures:</strong> {performance_errors}</li>
-  <li><strong>Functional / business failures:</strong> {functional_errors}</li>
-  <li><strong>Unclassified failures:</strong> {unknown_errors}</li>
-</ul>
-<p>
-Functional failures are excluded from performance degradation analysis.
+# --------------------------------------------------
+# Run Validity Section (NEW & CRITICAL)
+# --------------------------------------------------
+validity_section = """
+<h2>Run Validity</h2>
+<p style="color: red;">
+<strong>This test run is NOT valid for performance evaluation.</strong><br>
+All observed failures are functional (authentication / assertion related).
+Performance metrics should not be interpreted until functional correctness is restored.
+</p>
+""" if not run_valid_for_perf else """
+<h2>Run Validity</h2>
+<p style="color: green;">
+<strong>This test run is valid for performance evaluation.</strong>
 </p>
 """
 
 # --------------------------------------------------
-# Final HTML (UNCHANGED STRUCTURE)
+# Final HTML
 # --------------------------------------------------
 html = f"""
 <!DOCTYPE html>
@@ -259,9 +269,12 @@ li {{
 
 <div class="summary-box">
   <p><strong>Total Requests:</strong> {total_requests}</p>
-  <p><strong>Observed Failure Rate:</strong> {observed_error_pct}%</p>
+  <p><strong>Functional Failure Rate:</strong> {functional_error_pct}%</p>
+  <p><strong>Performance Failure Rate:</strong> {performance_error_pct}%</p>
   <p><strong>Overall Throughput:</strong> {overall_throughput} transactions/sec</p>
 </div>
+
+{validity_section}
 
 <h2>Statistics</h2>
 <table>
@@ -301,10 +314,10 @@ li {{
 
 <h2>Scope & Interpretation Notes</h2>
 <ul>
-  <li>Performance statistics are derived from JMeter aggregated results.</li>
-  <li>Functional failures are identified using raw JMeter sample data when available.</li>
+  <li>statistics.json reflects aggregated JMeter observations.</li>
+  <li>Functional failures are identified using raw JMeter sample data.</li>
   <li>Functional failures are excluded from performance degradation analysis.</li>
-  <li>No assumptions are made beyond observable evidence.</li>
+  <li>No performance conclusions are drawn from invalid runs.</li>
 </ul>
 
 </body>
