@@ -101,7 +101,12 @@ functional_error_pct = r((functional_errors / total_requests) * 100) if total_re
 performance_error_pct = r((performance_errors / total_requests) * 100) if total_requests else 0
 
 # Run validity decision
-run_valid_for_perf = performance_error_pct > 0 or observed_error_count == 0
+if performance_error_pct > 0 and functional_error_pct > 0:
+    run_validity = "MIXED"
+elif performance_error_pct > 0:
+    run_validity = "VALID"
+else:
+    run_validity = "INVALID"
 
 # --------------------------------------------------
 # Build Statistics table + Observations (UNCHANGED)
@@ -210,17 +215,28 @@ if failure_details:
 # --------------------------------------------------
 # Run Validity Section (NEW & CRITICAL)
 # --------------------------------------------------
-validity_section = """
+if run_validity == "VALID":
+    validity_section = """
+<h2>Run Validity</h2>
+<p style="color: green;">
+<strong>This test run is valid for performance evaluation.</strong>
+</p>
+"""
+elif run_validity == "MIXED":
+    validity_section = """
+<h2>Run Validity</h2>
+<p style="color: orange;">
+<strong>This test run contains both functional and performance failures.</strong><br>
+Performance-related issues were observed, but functional failures may affect result interpretation.
+</p>
+"""
+else:
+    validity_section = """
 <h2>Run Validity</h2>
 <p style="color: red;">
 <strong>This test run is NOT valid for performance evaluation.</strong><br>
 All observed failures are functional (authentication / assertion related).
 Performance metrics should not be interpreted until functional correctness is restored.
-</p>
-""" if not run_valid_for_perf else """
-<h2>Run Validity</h2>
-<p style="color: green;">
-<strong>This test run is valid for performance evaluation.</strong>
 </p>
 """
 
