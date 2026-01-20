@@ -28,7 +28,7 @@
         {
           "opType": "ADD",
           "field": "names",
-          "value": "{\"data\":[{\"firstName\":\"Zyphorinimin\",\"lastName\":\"Quenlaximax\"}]}"
+          "value": "{\"data\":[{\"firstName\"cccc:\"Zyphorinimin\",\"lastName\":\"Quenlaximax\"}]}"
         }
       ]
     }
