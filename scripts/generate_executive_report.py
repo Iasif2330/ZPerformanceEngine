@@ -73,12 +73,21 @@ if os.path.exists(RESULTS_JTL):
 
                 failure_details.setdefault(label, []).append((code, msg))
 
-                if code.startswith("4"):
+                # Assertion or validation failures (functional)
+                if row.get("failureMessage"):
                     functional_errors += 1
+
+                # Client-side or auth/business failures
+                elif code.startswith("4"):
+                    functional_errors += 1
+
+                # Performance-related failures
                 elif "timeout" in msg or "timed out" in msg:
                     performance_errors += 1
                 elif code.startswith("5"):
                     performance_errors += 1
+
+                # Fallback (rare)
                 else:
                     unknown_errors += 1
 
