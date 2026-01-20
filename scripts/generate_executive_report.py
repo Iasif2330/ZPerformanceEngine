@@ -16,7 +16,9 @@ OUTPUT_DIR = sys.argv[2]
 OUTPUT_HTML = os.path.join(OUTPUT_DIR, "index.html")
 
 # Optional raw JMeter results file (AUTO-DETECTED)
-RESULTS_JTL = os.path.join(os.path.dirname(STATISTICS_JSON), "results.jtl")
+DASHBOARD_DIR = os.path.dirname(STATISTICS_JSON)
+BASE_OUTPUT_DIR = os.path.dirname(DASHBOARD_DIR)
+RESULTS_JTL = os.path.join(BASE_OUTPUT_DIR, "results.jtl")
 
 if not os.path.exists(STATISTICS_JSON):
     raise FileNotFoundError(
