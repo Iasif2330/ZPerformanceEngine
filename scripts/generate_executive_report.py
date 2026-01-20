@@ -58,7 +58,7 @@ overall_throughput = r(total.get("throughput", 0), 2)
 functional_errors = 0
 performance_errors = 0
 unknown_errors = 0
-
+failure_details = {}  # { label: [(responseCode, responseMessage), ...] }
 if os.path.exists(RESULTS_JTL):
     try:
         with open(RESULTS_JTL, newline="", encoding="utf-8") as f:
@@ -67,10 +67,12 @@ if os.path.exists(RESULTS_JTL):
                 if row.get("success", "").lower() == "true":
                     continue
 
-                code = row.get("responseCode", "")
+                label = row.get("label", "UNKNOWN")
+                code = row.get("responseCode", "N/A")
                 msg = row.get("responseMessage", "").lower()
 
-                # Conservative & defensible rules
+                failure_details.setdefault(label, []).append((code, msg))
+
                 if code.startswith("4"):
                     functional_errors += 1
                 elif "timeout" in msg or "timed out" in msg:
@@ -79,6 +81,7 @@ if os.path.exists(RESULTS_JTL):
                     performance_errors += 1
                 else:
                     unknown_errors += 1
+
     except Exception:
         functional_errors = performance_errors = unknown_errors = 0
 
@@ -186,6 +189,14 @@ errors_section = f"""
   <li><strong>Performance-related failures:</strong> {performance_error_pct}%</li>
 </ul>
 """
+
+if failure_details:
+    errors_section += "<h3>Failure Details by API</h3><ul>"
+    for api, failures in failure_details.items():
+        unique_codes = sorted(set(code for code, _ in failures))
+        codes_str = ", ".join(unique_codes)
+        errors_section += f"<li><strong>{api}</strong>: {len(failures)} failure(s) — Response codes: {codes_str}</li>"
+    errors_section += "</ul>"
 
 # --------------------------------------------------
 # Run Validity Section (NEW & CRITICAL)
