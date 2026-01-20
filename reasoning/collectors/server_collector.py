@@ -245,7 +245,7 @@ class ServerCollector:
                     "end": end_ts,
                     "step": step,
                 },
-                timeout=30,
+                timeout=90,
             )
             resp.raise_for_status()
             results[q["refId"]] = resp.json()
