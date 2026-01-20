@@ -1,0 +1,51 @@
+{
+  "group": "ASSET",
+  "data": {
+    "type": "ASSET_ACTION",
+    "category": "interest",
+    "assetType": "ENTITY",
+    "operation": "CREATE"
+  },
+  "actions": [
+    {
+      "name": "FIELD_UPDATE",
+      "updates": [
+        {
+          "opType": "SET",
+          "field": "category",
+          "value": "interest"
+        },
+        {
+          "opType": "SET",
+          "field": "subCategory",
+          "value": "person"
+        },
+        {
+          "opType": "SET",
+          "field": "visibility",
+          "value": "{\"type\":\"PUBLIC\"}"
+        },
+        {
+          "opType": "SET",
+          "field": "gender",
+          "value": "Male"
+        },
+        {
+          "opType": "SET",
+          "field": "threat",
+          "value": "-1"
+        },
+        {
+          "opType": "SET",
+          "field": "principalAssociations",
+          "value": "[{\"principalId\":\"694e6f4cdff4554c6d11edb9\"}]"
+        },
+        {
+          "opType": "SET",
+          "field": "assignmentDetails",
+          "value": "{\"assignedTo\":\"674aec6d83f5c46478215b5e\"}"
+        }
+      ]
+    }
+  ]
+}
