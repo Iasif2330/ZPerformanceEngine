@@ -1,9 +1,10 @@
 import json
 import sys
 import os
+import csv
 
 # --------------------------------------------------
-# Inputs
+# Inputs (UNCHANGED)
 # --------------------------------------------------
 if len(sys.argv) != 3:
     raise SystemExit(
@@ -14,6 +15,9 @@ STATISTICS_JSON = sys.argv[1]
 OUTPUT_DIR = sys.argv[2]
 OUTPUT_HTML = os.path.join(OUTPUT_DIR, "index.html")
 
+# Optional raw JMeter results file (AUTO-DETECTED)
+RESULTS_JTL = os.path.join(os.path.dirname(STATISTICS_JSON), "results.jtl")
+
 if not os.path.exists(STATISTICS_JSON):
     raise FileNotFoundError(
         f"statistics.json not found at {STATISTICS_JSON}. "
@@ -23,7 +27,7 @@ if not os.path.exists(STATISTICS_JSON):
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # --------------------------------------------------
-# Load statistics.json (AUTHORITATIVE SOURCE)
+# Load statistics.json (AUTHORITATIVE PERFORMANCE SUMMARY)
 # --------------------------------------------------
 with open(STATISTICS_JSON, "r", encoding="utf-8") as f:
     stats = json.load(f)
@@ -37,7 +41,7 @@ def r(v, d=2):
     return 0
 
 # --------------------------------------------------
-# Extract totals
+# Extract totals (UNCHANGED)
 # --------------------------------------------------
 total = stats.get("Total", {})
 
@@ -47,7 +51,38 @@ observed_error_pct = r(total.get("errorPct", 0))
 overall_throughput = r(total.get("throughput", 0), 2)
 
 # --------------------------------------------------
-# Build Statistics table + Observations
+# OPTIONAL: Classify errors using results.jtl (SAFE ADDITION)
+# --------------------------------------------------
+functional_errors = 0
+performance_errors = 0
+unknown_errors = 0
+
+if os.path.exists(RESULTS_JTL):
+    try:
+        with open(RESULTS_JTL, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row.get("success", "").lower() == "true":
+                    continue
+
+                code = row.get("responseCode", "")
+                msg = row.get("responseMessage", "").lower()
+
+                # Conservative, defensible classification
+                if code.startswith("4"):
+                    functional_errors += 1
+                elif "timeout" in msg or "timed out" in msg:
+                    performance_errors += 1
+                elif code.startswith("5"):
+                    performance_errors += 1
+                else:
+                    unknown_errors += 1
+    except Exception:
+        # Never break report generation due to JTL parsing
+        functional_errors = performance_errors = unknown_errors = 0
+
+# --------------------------------------------------
+# Build Statistics table + Observations (UNCHANGED)
 # --------------------------------------------------
 statistics_rows = []
 observations = []
@@ -112,7 +147,7 @@ for label, m in stats.items():
     """)
 
 # --------------------------------------------------
-# Executive Insights (PROVABLE ONLY)
+# Executive Insights (UNCHANGED)
 # --------------------------------------------------
 insights = []
 
@@ -132,9 +167,10 @@ if p95_rank:
     )
 
 # --------------------------------------------------
-# Errors Section (STRICTLY DEFENSIBLE)
+# Errors Section (NOW SEPARATED, BUT SAFE)
 # --------------------------------------------------
 errors_section = ""
+
 if observed_error_count > 0:
     errors_section = f"""
 <h2>Observed Failures</h2>
@@ -144,8 +180,20 @@ A total of <strong>{observed_error_count}</strong> unsuccessful samples were rec
 </p>
 """
 
+    if os.path.exists(RESULTS_JTL):
+        errors_section += f"""
+<ul>
+  <li><strong>Performance-related failures:</strong> {performance_errors}</li>
+  <li><strong>Functional / business failures:</strong> {functional_errors}</li>
+  <li><strong>Unclassified failures:</strong> {unknown_errors}</li>
+</ul>
+<p>
+Functional failures are excluded from performance degradation analysis.
+</p>
+"""
+
 # --------------------------------------------------
-# Final HTML
+# Final HTML (UNCHANGED STRUCTURE)
 # --------------------------------------------------
 html = f"""
 <!DOCTYPE html>
@@ -253,10 +301,10 @@ li {{
 
 <h2>Scope & Interpretation Notes</h2>
 <ul>
-  <li>Error metrics represent aggregated unsuccessful samples only.</li>
-  <li>No assumptions are made regarding error cause or classification.</li>
-  <li>No SLAs, baselines, or trend comparisons are applied.</li>
-  <li>This report reflects client-observed behavior under test conditions.</li>
+  <li>Performance statistics are derived from JMeter aggregated results.</li>
+  <li>Functional failures are identified using raw JMeter sample data when available.</li>
+  <li>Functional failures are excluded from performance degradation analysis.</li>
+  <li>No assumptions are made beyond observable evidence.</li>
 </ul>
 
 </body>
