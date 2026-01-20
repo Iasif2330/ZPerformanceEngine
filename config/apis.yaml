@@ -41,12 +41,12 @@ apis:
     headers: "apiHeaders"
     extractCookie: false
 
-  # - name: feedpreview
-  #   method: POST
-  #   endpoint: "/rest/web/current/feed/preview?module=GEO"
-  #   payload: "useEnv"
-  #   headers: "apiHeaders"
-  #   extractCookie: false
+  - name: feedpreview
+    method: POST
+    endpoint: "/rest/web/current/feed/preview?module=GEO"
+    payload: "useEnv"
+    headers: "apiHeaders"
+    extractCookie: false
 
   - name: createentity
     method: POST
