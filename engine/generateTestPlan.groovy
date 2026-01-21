@@ -361,8 +361,8 @@ for (val in forbidden) {
 // =======================================================
 // 4) Resolve assertions for API (UNCHANGED LOGIC)
 // =======================================================
-def resolveAssertionsForApi = {
-    apiName -> if (apiAssertionsMap.containsKey(apiName)) {
+def resolveAssertionsForApi = { apiName ->
+    if (apiAssertionsMap.containsKey(apiName)) {
         return apiAssertionsMap[apiName]
     }
     return defaultAssertions
@@ -370,32 +370,39 @@ def resolveAssertionsForApi = {
 
 
 // =======================================================
-// 5) Dispatcher: YAML → JSR223 Assertions
+// 5) Dispatcher: YAML → JSR223 Assertions (FIXED SYNTAX)
 // =======================================================
-def buildAssertionFromSpec = {
-    builder, apiName, spec -> switch (spec.type) {
+def buildAssertionFromSpec = { builder, apiName, spec ->
+    switch (spec.type) {
+
         case "response_code":
-        buildResponseCodeJSR223Assertion(
-            builder,
-            apiName,
-            spec.values
-        )
-        break case "response_size_gt":
-        buildResponseSizeJSR223Assertion(
-            builder,
-            apiName,
-            spec.value
-        )
-        break case "body_not_contains":
-        buildBodyNotContainsJSR223Assertion(
-            builder,
-            apiName,
-            spec.values
-        )
-        break default :
-        throw new IllegalArgumentException(
-            "Unknown assertion type '${spec.type}' for API '${apiName}'"
-        )
+            buildResponseCodeJSR223Assertion(
+                builder,
+                apiName,
+                spec.values
+            )
+            break
+
+        case "response_size_gt":
+            buildResponseSizeJSR223Assertion(
+                builder,
+                apiName,
+                spec.value
+            )
+            break
+
+        case "body_not_contains":
+            buildBodyNotContainsJSR223Assertion(
+                builder,
+                apiName,
+                spec.values
+            )
+            break
+
+        default:
+            throw new IllegalArgumentException(
+                "Unknown assertion type '${spec.type}' for API '${apiName}'"
+            )
     }
 }
 

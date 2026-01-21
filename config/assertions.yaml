@@ -1,12 +1,47 @@
-defaults: []
+# ============================
+# DEFAULT ASSERTIONS
+# Applied to ALL APIs
+# ============================
+defaults:
+  # ----------------------------
+  # Correct success response codes
+  # ----------------------------
+  - type: response_code
+    values: [200, 201]
 
+  # ----------------------------
+  # Response body must not be empty
+  # ----------------------------
+  - type: response_size_gt
+    value: 0
+
+  # ----------------------------
+  # Response body must not contain error
+  # ----------------------------
+  - type: body_not_contains
+    values:
+      - error
+      - exception
+      - stacktrace
+
+
+# ============================
+# API-SPECIFIC OVERRIDES
+# ============================
 apis:
+  # ----------------------------
+  # LOGIN API (SPECIAL CASE)
+  # ----------------------------
   login:
+    # Login success is HTTP 302
     - type: response_code
       values: [302]
 
-    # - type: response_size_gt
-    #   value: 0
-
-    - type: body_not_contains
-      values: ["error"]
+    # Failure is encoded in redirect URL (RESPONSE HEADER)
+    - type: header_not_contains
+      name: Location
+      values:
+        - error
+        - error_code
+        - unauthorized
+        - invalid
