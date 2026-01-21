@@ -276,7 +276,6 @@ def buildResponseCodeJSR223Assertion = {
         enabled: "true"
     ) {
         stringProp(name: "scriptLanguage", "groovy")
-        // REQUIRED so assertion actually fails in JMeter 5.x
         boolProp(name: "cacheKey", "false")
         stringProp(
             name: "script",
@@ -359,7 +358,50 @@ for (val in forbidden) {
 
 
 // =======================================================
-// 4) Resolve assertions for API (UNCHANGED LOGIC)
+// 4) JSR223 Response HEADER NOT Contains Assertion
+// =======================================================
+def buildHeaderNotContainsJSR223Assertion = {
+    builder, apiName, headerName, forbiddenValues -> builder.JSR223Assertion(
+        guiclass: "TestBeanGUI",
+        testclass: "JSR223Assertion",
+        testname: "${apiName}: Header '${headerName}' Not Contains",
+        enabled: "true"
+    ) {
+        stringProp(name: "scriptLanguage", "groovy")
+        boolProp(name: "cacheKey", "false")
+        stringProp(
+            name: "script",
+            """
+def headers = prev.getResponseHeaders()
+def headerValue = null
+
+headers?.split("\\n")?.each { line ->
+    if (line.toLowerCase().startsWith("${headerName.toLowerCase()}:")) {
+        headerValue = line.split(":", 2)[1]?.trim()
+    }
+}
+
+def forbidden = ${forbiddenValues.collect { "\"$it\"" }}
+
+if (headerValue != null) {
+    for (val in forbidden) {
+        if (headerValue.toLowerCase().contains(val.toLowerCase())) {
+            AssertionResult.setFailure(true)
+            AssertionResult.setFailureMessage(
+                "Response header '${headerName}' contains forbidden value: '" + val + "'"
+            )
+            break
+        }
+    }
+}
+"""
+        )
+    }
+}
+
+
+// =======================================================
+// 5) Resolve assertions for API (UNCHANGED LOGIC)
 // =======================================================
 def resolveAssertionsForApi = { apiName ->
     if (apiAssertionsMap.containsKey(apiName)) {
@@ -370,7 +412,7 @@ def resolveAssertionsForApi = { apiName ->
 
 
 // =======================================================
-// 5) Dispatcher: YAML → JSR223 Assertions (FIXED SYNTAX)
+// 6) Dispatcher: YAML → JSR223 Assertions (UPDATED)
 // =======================================================
 def buildAssertionFromSpec = { builder, apiName, spec ->
     switch (spec.type) {
@@ -395,6 +437,15 @@ def buildAssertionFromSpec = { builder, apiName, spec ->
             buildBodyNotContainsJSR223Assertion(
                 builder,
                 apiName,
+                spec.values
+            )
+            break
+
+        case "header_not_contains":
+            buildHeaderNotContainsJSR223Assertion(
+                builder,
+                apiName,
+                spec.name,
                 spec.values
             )
             break
