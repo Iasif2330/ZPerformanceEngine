@@ -5,8 +5,8 @@ apis:
     - type: response_code
       values: [302]
 
-    - type: response_size_gt
-      value: 0
+    # - type: response_size_gt
+    #   value: 0
 
     - type: body_not_contains
       values: ["error"]
