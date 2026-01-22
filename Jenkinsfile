@@ -193,8 +193,8 @@ pipeline {
                         script: """
                             awk -F',' '
                                 NR>1 {
-                                    label=$3        # sampler label (API name)
-                                    success=$6      # success flag
+                                    label=\$3
+                                    success=\$6
                                     if (success=="true") ok[label]=1
                                     else bad[label]=1
                                 }
