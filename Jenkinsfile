@@ -133,34 +133,131 @@ pipeline {
                 }
             }
         }
-
         /* ============================
-         * STAGE 4 — Generate Dynamic JMX
+         * STAGE 4A — Generate FUNCTIONAL JMX (1 User)
          * ============================ */
-        stage('Generate Test Plan') {
+        stage('Generate Functional Test Plan') {
             steps {
                 sh """
                     ${DOCKER_CLI} run --rm \
-                      -v "${WORKSPACE}:${WORKDIR}" \
-                      -w ${WORKDIR} \
-                      ${IMAGE_NAME} \
-                      groovy ${CLI_ARGS} engine/generateTestPlan.groovy
+                    -v "${WORKSPACE}:${WORKDIR}" \
+                    -w ${WORKDIR} \
+                    ${IMAGE_NAME} \
+                    groovy \
+                        -Denv=${env.ENVIRONMENT} \
+                        -Dprofile=functional-1u \
+                        -DloopLogin=true \
+                        engine/generateTestPlan.groovy
+
+                    mv output/generated-test-plan.jmx output/functional-test-plan.jmx
+                """
+
+                script {
+                    if (!fileExists("output/functional-test-plan.jmx")) {
+                        error "❌ Functional JMX generation failed!"
+                    }
+                }
+
+                echo "Generated FUNCTIONAL JMX at: output/functional-test-plan.jmx"
+            }
+        }
+        /* ============================
+         * STAGE 4B — Run Functional Test (1 User)
+         * ============================ */
+        stage('Run Functional Test') {
+            steps {
+                sh """
+                    ${DOCKER_CLI} run --rm \
+                    -v "${WORKSPACE}:${WORKDIR}" \
+                    -w ${WORKDIR} \
+                    ${IMAGE_NAME} \
+                    sh -c '
+                        jmeter -n \
+                        -t output/functional-test-plan.jmx \
+                        -l output/functional_results.jtl \
+                        -Jjmeter.save.saveservice.output_format=csv \
+                        -Jjmeter.save.saveservice.label=true \
+                        -Jjmeter.save.saveservice.successful=true \
+                        -Jjmeter.save.saveservice.response_code=true
+                    '
+                """
+            }
+        }
+        /* ============================
+         * STAGE 4C — Resolve Functional Eligibility
+         * ============================ */
+        stage('Resolve Functional Eligibility') {
+            steps {
+                script {
+                    def eligibleApis = sh(
+                        script: """
+                            awk -F',' '
+                                NR>1 {
+                                    label=\$1
+                                    success=\$8
+                                    if (success=="true") ok[label]=1
+                                    else bad[label]=1
+                                }
+                                END {
+                                    for (k in ok) {
+                                        if (!(k in bad)) print k
+                                    }
+                                }
+                            ' output/functional_results.jtl | paste -sd "," -
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    if (!eligibleApis) {
+                        echo "⚠️ No APIs eligible after functional test — load will be skipped"
+                        env.ELIGIBLE_APIS = ""
+                    } else {
+                        env.ELIGIBLE_APIS = eligibleApis
+                        echo "✅ Eligible APIs for load: ${eligibleApis}"
+                    }
+                }
+            }
+        }
+
+        /* ============================
+         * STAGE 4D — Generate LOAD Test Plan (FINAL)
+         * ============================ */
+        stage('Generate Load Test Plan') {
+            when {
+                expression { return env.ELIGIBLE_APIS?.trim() }
+            }
+            steps {
+                sh """
+                    ${DOCKER_CLI} run --rm \
+                    -v "${WORKSPACE}:${WORKDIR}" \
+                    -w ${WORKDIR} \
+                    ${IMAGE_NAME} \
+                    groovy \
+                        -Denv=${env.ENVIRONMENT} \
+                        -Dprofile=${env.LOAD_PROFILE} \
+                        -DloopLogin=true \
+                        -Dapis=${env.ELIGIBLE_APIS} \
+                        engine/generateTestPlan.groovy
                 """
 
                 script {
                     if (!fileExists("output/generated-test-plan.jmx")) {
-                        error "❌ JMX generation failed!"
+                        error "❌ Load JMX generation failed!"
                     }
                 }
 
-                echo "Generated JMX at: output/generated-test-plan.jmx"
+                echo "Generated LOAD JMX at: output/generated-test-plan.jmx"
             }
         }
+
 
         /* ============================
          * STAGE 5 — Pre-flight Reasoning
          * ============================ */
         stage('Pre-flight Reasoning') {
+            when {
+                expression { return env.ELIGIBLE_APIS?.trim() }
+            }
             steps {
                 withCredentials([
                     string(credentialsId: 'grafana-readonly-token', variable: 'GRAFANA_API_TOKEN')
@@ -190,6 +287,9 @@ pipeline {
          * STAGE 6 — Run JMeter
          * ============================ */
         stage('Run JMeter') {
+            when {
+                expression { return env.ELIGIBLE_APIS?.trim() }
+            }
             steps {
                 sh """
                     # -------------------------------
@@ -293,7 +393,8 @@ pipeline {
                         dashboard \
                         executive \
                         reasoning \
-                        generated-test-plan.jmx
+                        generated-test-plan.jmx \
+                        functional-test-plan.jmx
                 '''
 
                 archiveArtifacts artifacts: 'output/performance-reports.zip', fingerprint: true
