@@ -194,14 +194,11 @@ pipeline {
                             awk -F',' '
                                 NR>1 {
                                     label=\$3
-                                    success=\$6
+                                    success=\$8
                                     if (success=="true") ok[label]=1
-                                    else bad[label]=1
                                 }
                                 END {
-                                    for (k in ok) {
-                                        if (!(k in bad)) print k
-                                    }
+                                    for (k in ok) print k
                                 }
                             ' output/functional_results.jtl | paste -sd "," -
                         """,
