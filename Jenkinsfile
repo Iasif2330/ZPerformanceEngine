@@ -145,7 +145,7 @@ pipeline {
                     ${IMAGE_NAME} \
                     groovy \
                         -Denv=${env.ENVIRONMENT} \
-                        -Dprofile=functional-1u \
+                        -Dprofile=baseline-minimal \
                         -DloopLogin=true \
                         engine/generateTestPlan.groovy
 
