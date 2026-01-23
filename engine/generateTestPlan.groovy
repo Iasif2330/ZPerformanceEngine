@@ -485,56 +485,6 @@ xml.jmeterTestPlan(version: "1.2", properties: "5.0", jmeter: "5.6.3") {
             stringProp(name: "httpclient3.retrycount", "0")
         }
         hashTree {
-            // =========================
-            // PROMETHEUS BACKEND LISTENER (TEST-PLAN LEVEL)
-            // =========================
-            BackendListener(
-                guiclass: "BackendListenerGui",
-                testclass: "BackendListener",
-                testname: "Prometheus Listener",
-                enabled: "true"
-            ) {
-                stringProp(
-                    name: "classname",
-                    "org.apache.jmeter.visualizers.backend.prometheus.PrometheusBackendListenerClient"
-                )
-
-                elementProp(name: "arguments", elementType: "Arguments") {
-                    collectionProp(name: "Arguments.arguments") {
-
-                        elementProp(name: "port", elementType: "Argument") {
-                            stringProp(name: "Argument.name", "port")
-                            stringProp(name: "Argument.value", "9270")
-                            stringProp(name: "Argument.metadata", "=")
-                        }
-
-                        elementProp(name: "metrics_path", elementType: "Argument") {
-                            stringProp(name: "Argument.name", "metrics_path")
-                            stringProp(name: "Argument.value", "/metrics")
-                            stringProp(name: "Argument.metadata", "=")
-                        }
-                        // 🔥 THIS IS THE IMPORTANT FIX 🔥
-                        elementProp(name: "host", elementType: "Argument") {
-                            stringProp(name: "Argument.name", "host")
-                            stringProp(name: "Argument.value", "0.0.0.0")
-                            stringProp(name: "Argument.metadata", "=")
-                        }
-
-                        elementProp(name: "percentiles", elementType: "Argument") {
-                            stringProp(name: "Argument.name", "percentiles")
-                            stringProp(name: "Argument.value", "90;95;99")
-                            stringProp(name: "Argument.metadata", "=")
-                        }
-
-                        elementProp(name: "summary_only", elementType: "Argument") {
-                            stringProp(name: "Argument.name", "summary_only")
-                            stringProp(name: "Argument.value", "false")
-                            stringProp(name: "Argument.metadata", "=")
-                        }
-                    }
-                }
-            }
-            hashTree()
             ThreadGroup(
                 guiclass: "ThreadGroupGui",
                 testclass: "ThreadGroup",
@@ -576,17 +526,6 @@ xml.jmeterTestPlan(version: "1.2", properties: "5.0", jmeter: "5.6.3") {
                     enabled: "true"
                 ) {
                     boolProp(name: "CookieManager.clearEachIteration", "false")
-                }
-                hashTree()
-                // 🔥 WARM-UP SAMPLER — ADD HERE 🔥
-                TestAction(
-                    guiclass: "TestActionGui",
-                    testclass: "TestAction",
-                    testname: "warmup",
-                    enabled: "true"
-                ) {
-                    intProp(name: "ActionProcessor.action", 1)
-                    longProp(name: "ActionProcessor.duration", 1)
                 }
                 hashTree()
                 // LOGIN SAMPLER
