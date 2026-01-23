@@ -143,11 +143,7 @@ pipeline {
                     -v "${WORKSPACE}:${WORKDIR}" \
                     -w ${WORKDIR} \
                     ${IMAGE_NAME} \
-                    groovy \
-                        -Denv=${env.ENVIRONMENT} \
-                        -Dprofile=baseline-minimal \
-                        -DloopLogin=true \
-                        engine/generateTestPlan.groovy
+                    groovy ${env.CLI_ARGS} -Dprofile=baseline-minimal engine/generateTestPlan.groovy
 
                     mv output/generated-test-plan.jmx output/functional-test-plan.jmx
                 """
