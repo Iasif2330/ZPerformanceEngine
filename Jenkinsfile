@@ -281,7 +281,7 @@ pipeline {
         }
 
         /* ============================
-         * STAGE 6 — Run JMeter
+         * STAGE 6 — Run JMeter (WITH PROMETHEUS)
          * ============================ */
         stage('Run JMeter') {
             when {
@@ -289,79 +289,41 @@ pipeline {
             }
             steps {
                 sh """
-                    # -------------------------------
-                    # Capture test start time (epoch seconds)
-                    # -------------------------------
                     date +%s > output/test_start_ts
 
-                    ${DOCKER_CLI} run --rm \
-                    -v "${WORKSPACE}:${WORKDIR}" \
-                    -w ${WORKDIR} \
-                    ${IMAGE_NAME} \
+                    ${DOCKER_CLI} run --rm \\
+                    -p 9270:9270 \\
+                    -v "${WORKSPACE}:${WORKDIR}" \\
+                    -w ${WORKDIR} \\
+                    ${IMAGE_NAME} \\
                     sh -c '
                         set -e
 
-                        rm -rf output/dashboard
+                        echo "Starting JMeter with Prometheus BackendListener..."
 
-                        # -------------------------------
-                        # Start JMeter in BACKGROUND
-                        # -------------------------------
-                        jmeter -n \
-                        -t output/generated-test-plan.jmx \
-                        -l output/results.jtl \
-                        -Jjmeter.save.saveservice.output_format=csv \
-                        -Jjmeter.save.saveservice.assertion_results=none \
-                        -Jjmeter.save.saveservice.data_type=true \
-                        -Jjmeter.save.saveservice.label=true \
-                        -Jjmeter.save.saveservice.response_code=true \
-                        -Jjmeter.save.saveservice.response_message=true \
-                        -Jjmeter.save.saveservice.successful=true \
-                        -Jjmeter.save.saveservice.thread_name=true \
-                        -Jjmeter.save.saveservice.time=true \
-                        -Jjmeter.save.saveservice.latency=true \
-                        -Jjmeter.save.saveservice.connect_time=true \
-                        -Jjmeter.save.saveservice.bytes=true \
-                        -Jjmeter.save.saveservice.sent_bytes=true \
-                        -Jjmeter.save.saveservice.sample_count=true \
-                        -Jjmeter.save.saveservice.error_count=true \
-                        -Jjmeter.save.saveservice.hostname=true \
-                        -Jjmeter.save.saveservice.timestamp=true \
-                        -Jjmeter.save.saveservice.thread_counts=true \
-                        -e -o output/dashboard &
-
-                        JMETER_PID=\$!
-
-                        echo ""
-                        echo "===== PROMETHEUS METRICS (LIVE POLL) ====="
-
-                        # ------------------------------------------------
-                        # Poll /metrics WHILE JMeter is still running
-                        # ------------------------------------------------
-                        for i in \$(seq 1 20); do
-                            if ps -p \$JMETER_PID > /dev/null; then
-                                METRICS=\$(curl -s http://localhost:9270/metrics | grep jmeter_ | head -n 5)
-                                if [ -n "\$METRICS" ]; then
-                                    echo "\$METRICS"
-                                    break
-                                fi
-                                sleep 1
-                            else
-                                break
-                            fi
-                        done
-
-                        echo "=========================================="
-                        echo ""
-
-                        # -------------------------------
-                        # Wait for JMeter to finish
-                        # -------------------------------
-                        wait \$JMETER_PID
+                        jmeter -n \\
+                        -t output/generated-test-plan.jmx \\
+                        -l output/results.jtl \\
+                        -Jduration=60000 \\
+                        -Jjmeter.save.saveservice.output_format=csv \\
+                        -Jjmeter.save.saveservice.assertion_results=none \\
+                        -Jjmeter.save.saveservice.label=true \\
+                        -Jjmeter.save.saveservice.successful=true \\
+                        -Jjmeter.save.saveservice.response_code=true \\
+                        -Jjmeter.save.saveservice.response_message=true \\
+                        -Jjmeter.save.saveservice.thread_name=true \\
+                        -Jjmeter.save.saveservice.time=true \\
+                        -Jjmeter.save.saveservice.latency=true \\
+                        -Jjmeter.save.saveservice.connect_time=true \\
+                        -Jjmeter.save.saveservice.bytes=true \\
+                        -Jjmeter.save.saveservice.sent_bytes=true \\
+                        -Jjmeter.save.saveservice.sample_count=true \\
+                        -Jjmeter.save.saveservice.error_count=true \\
+                        -Jjmeter.save.saveservice.hostname=true \\
+                        -Jjmeter.save.saveservice.timestamp=true \\
+                        -Jjmeter.save.saveservice.thread_counts=true
                     '
 
-                    # -------------------------------
-                    # Capture test end time (epoch seconds)
-                    # -------------------------------
                     date +%s > output/test_end_ts
                 """
             }
@@ -378,7 +340,6 @@ pipeline {
                 ]) {
                     sh """
                         ${DOCKER_CLI} run --rm \
-                        -p 9270:9270 \
                         -v "${WORKSPACE}:${WORKDIR}" \
                         -w ${WORKDIR} \
                         -e ENVIRONMENT=${env.ENVIRONMENT} \
