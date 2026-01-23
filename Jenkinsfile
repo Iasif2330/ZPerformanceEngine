@@ -281,7 +281,7 @@ pipeline {
         }
 
         /* ============================
-         * STAGE 6 — Run JMeter (WITH PROMETHEUS)
+         * STAGE 6 — Run JMeter (Prometheus + HTML Dashboard)
          * ============================ */
         stage('Run JMeter') {
             when {
@@ -300,6 +300,8 @@ pipeline {
                         set -e
 
                         echo "Starting JMeter with Prometheus BackendListener..."
+
+                        rm -rf output/dashboard
 
                         jmeter -n \\
                         -t output/generated-test-plan.jmx \\
@@ -321,7 +323,8 @@ pipeline {
                         -Jjmeter.save.saveservice.error_count=true \\
                         -Jjmeter.save.saveservice.hostname=true \\
                         -Jjmeter.save.saveservice.timestamp=true \\
-                        -Jjmeter.save.saveservice.thread_counts=true
+                        -Jjmeter.save.saveservice.thread_counts=true \\
+                        -e -o output/dashboard
                     '
 
                     date +%s > output/test_end_ts
