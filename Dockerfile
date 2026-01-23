@@ -38,6 +38,15 @@ ENV JMETER_HOME=/opt/apache-jmeter-${JMETER_VERSION}
 ENV PATH=$PATH:$JMETER_HOME/bin
 
 # -------------------------------
+# Install JMeter Prometheus Backend Listener (REQUIRED)
+# -------------------------------
+# IMPORTANT:
+# - jmeter-prometheus-listener.jar must exist in the repo root
+# - This enables the BackendListener in your generated JMX
+COPY jmeter-prometheus-listener.jar \
+     ${JMETER_HOME}/lib/ext/
+
+# -------------------------------
 # Workspace
 # -------------------------------
 WORKDIR /workspace
