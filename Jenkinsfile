@@ -292,7 +292,6 @@ pipeline {
                     date +%s > output/test_start_ts
 
                     ${DOCKER_CLI} run --rm \\
-                    -p 9270:9270 \\
                     -v "${WORKSPACE}:${WORKDIR}" \\
                     -w ${WORKDIR} \\
                     ${IMAGE_NAME} \\
