@@ -331,15 +331,26 @@ pipeline {
 
                         JMETER_PID=\$!
 
-                        # -------------------------------
-                        # Allow BackendListener to start
-                        # -------------------------------
-                        sleep 20
-
                         echo ""
-                        echo "===== PROMETHEUS METRICS (DEBUG) ====="
-                        curl -s http://localhost:9270/metrics | head || echo "Prometheus endpoint not reachable"
-                        echo "====================================="
+                        echo "===== PROMETHEUS METRICS (LIVE POLL) ====="
+
+                        # ------------------------------------------------
+                        # Poll /metrics WHILE JMeter is still running
+                        # ------------------------------------------------
+                        for i in \$(seq 1 20); do
+                            if ps -p \$JMETER_PID > /dev/null; then
+                                METRICS=\$(curl -s http://localhost:9270/metrics | grep jmeter_ | head -n 5)
+                                if [ -n "\$METRICS" ]; then
+                                    echo "\$METRICS"
+                                    break
+                                fi
+                                sleep 1
+                            else
+                                break
+                            fi
+                        done
+
+                        echo "=========================================="
                         echo ""
 
                         # -------------------------------
