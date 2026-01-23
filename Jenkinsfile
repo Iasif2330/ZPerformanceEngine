@@ -378,6 +378,7 @@ pipeline {
                 ]) {
                     sh """
                         ${DOCKER_CLI} run --rm \
+                        -p 9270:9270 \
                         -v "${WORKSPACE}:${WORKDIR}" \
                         -w ${WORKDIR} \
                         -e ENVIRONMENT=${env.ENVIRONMENT} \
