@@ -299,7 +299,13 @@ pipeline {
                     -w ${WORKDIR} \
                     ${IMAGE_NAME} \
                     sh -c '
-                        rm -rf output/dashboard &&
+                        set -e
+
+                        rm -rf output/dashboard
+
+                        # -------------------------------
+                        # Start JMeter in BACKGROUND
+                        # -------------------------------
                         jmeter -n \
                         -t output/generated-test-plan.jmx \
                         -l output/results.jtl \
@@ -321,7 +327,25 @@ pipeline {
                         -Jjmeter.save.saveservice.hostname=true \
                         -Jjmeter.save.saveservice.timestamp=true \
                         -Jjmeter.save.saveservice.thread_counts=true \
-                        -e -o output/dashboard
+                        -e -o output/dashboard &
+
+                        JMETER_PID=\$!
+
+                        # -------------------------------
+                        # Allow BackendListener to start
+                        # -------------------------------
+                        sleep 3
+
+                        echo ""
+                        echo "===== PROMETHEUS METRICS (DEBUG) ====="
+                        curl -s http://localhost:9270/metrics | head || echo "Prometheus endpoint not reachable"
+                        echo "====================================="
+                        echo ""
+
+                        # -------------------------------
+                        # Wait for JMeter to finish
+                        # -------------------------------
+                        wait \$JMETER_PID
                     '
 
                     # -------------------------------
