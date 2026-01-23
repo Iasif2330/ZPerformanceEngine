@@ -334,7 +334,7 @@ pipeline {
                         # -------------------------------
                         # Allow BackendListener to start
                         # -------------------------------
-                        sleep 3
+                        sleep 20
 
                         echo ""
                         echo "===== PROMETHEUS METRICS (DEBUG) ====="
