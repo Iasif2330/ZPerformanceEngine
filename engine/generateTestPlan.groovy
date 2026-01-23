@@ -513,6 +513,12 @@ xml.jmeterTestPlan(version: "1.2", properties: "5.0", jmeter: "5.6.3") {
                             stringProp(name: "Argument.value", "/metrics")
                             stringProp(name: "Argument.metadata", "=")
                         }
+                        // 🔥 THIS IS THE IMPORTANT FIX 🔥
+                        elementProp(name: "host", elementType: "Argument") {
+                            stringProp(name: "Argument.name", "host")
+                            stringProp(name: "Argument.value", "0.0.0.0")
+                            stringProp(name: "Argument.metadata", "=")
+                        }
 
                         elementProp(name: "percentiles", elementType: "Argument") {
                             stringProp(name: "Argument.name", "percentiles")
@@ -570,6 +576,17 @@ xml.jmeterTestPlan(version: "1.2", properties: "5.0", jmeter: "5.6.3") {
                     enabled: "true"
                 ) {
                     boolProp(name: "CookieManager.clearEachIteration", "false")
+                }
+                hashTree()
+                // 🔥 WARM-UP SAMPLER — ADD HERE 🔥
+                TestAction(
+                    guiclass: "TestActionGui",
+                    testclass: "TestAction",
+                    testname: "warmup",
+                    enabled: "true"
+                ) {
+                    intProp(name: "ActionProcessor.action", 1)
+                    longProp(name: "ActionProcessor.duration", 1)
                 }
                 hashTree()
                 // LOGIN SAMPLER
