@@ -24,7 +24,7 @@ class ReasoningReport:
             return None
 
         # Only export when an anomaly is actually detected
-        if anomaly.get("status") != "ANOMALY":
+        if anomaly.get("status") not in ("ANOMALY", "WEAK_BASELINE"):
             return None
 
         meta = baseline.get("meta", {})
