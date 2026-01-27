@@ -11,6 +11,7 @@ class ReasoningReport:
     """
 
     def build_baseline_comparison(
+        self,
         client_metrics: Dict | None,
         baseline: Dict | None,
         anomaly: Dict | None,
