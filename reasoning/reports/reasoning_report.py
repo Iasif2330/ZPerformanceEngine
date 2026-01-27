@@ -35,13 +35,25 @@ class ReasoningReport:
         if sample_count < 2:
             return None
 
-        try:
-            baseline_p95 = baseline["numeric"]["latency"]["p95_ms"]
-            current_p95 = client_metrics["latency"]["p95_ms"]
-            delta_pct = anomaly["anomalies"]["p95_latency"]["deviation_pct"]
-        except KeyError:
-            # Schema not as expected → do not export
+        baseline_p95 = baseline["numeric"]["latency"]["p95_ms"]
+        current_p95 = client_metrics["latency"]["p95_ms"]
+
+        # For strong anomalies, use anomaly delta
+        if anomaly.get("status") == "ANOMALY":
+            try:
+                delta_pct = anomaly["anomalies"]["p95_latency"]["deviation_pct"]
+            except KeyError:
+                return None
+
+        # For WEAK_BASELINE, compute delta directly
+        elif anomaly.get("status") == "WEAK_BASELINE":
+            if baseline_p95 == 0:
+                return None
+            delta_pct = ((current_p95 - baseline_p95) / baseline_p95) * 100
+
+        else:
             return None
+
 
         # Confidence heuristic (simple & honest)
         if sample_count < 3:
