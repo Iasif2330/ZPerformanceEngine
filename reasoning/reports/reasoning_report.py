@@ -254,7 +254,7 @@ class ReasoningReport:
         }
 
         # 🔑 NEW: baseline comparison export
-        baseline_comparison = build_baseline_comparison(
+        baseline_comparison = self.build_baseline_comparison(
             client_metrics=client_metrics,
             baseline=baseline,
             anomaly=anomaly,
