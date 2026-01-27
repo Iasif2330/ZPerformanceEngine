@@ -10,6 +10,61 @@ class ReasoningReport:
     faithfully reflect collected evidence.
     """
 
+    def build_baseline_comparison(
+        client_metrics: Dict | None,
+        baseline: Dict | None,
+        anomaly: Dict | None,
+    ) -> Dict | None:
+        """
+        Promote baseline + anomaly evidence into a reportable baseline comparison.
+        This is conservative by design.
+        """
+
+        if not client_metrics or not baseline or not anomaly:
+            return None
+
+        # Only export when an anomaly is actually detected
+        if anomaly.get("status") != "ANOMALY":
+            return None
+
+        meta = baseline.get("meta", {})
+        sample_count = meta.get("sample_count", 0)
+
+        # Require minimum evidence
+        if sample_count < 2:
+            return None
+
+        try:
+            baseline_p95 = baseline["numeric"]["latency"]["p95_ms"]
+            current_p95 = client_metrics["latency"]["p95_ms"]
+            delta_pct = anomaly["anomalies"]["p95_latency"]["deviation_pct"]
+        except KeyError:
+            # Schema not as expected → do not export
+            return None
+
+        # Confidence heuristic (simple & honest)
+        if sample_count < 3:
+            confidence = "LOW"
+        elif sample_count < 5:
+            confidence = "MEDIUM"
+        else:
+            confidence = "HIGH"
+
+        return {
+            "overall_status": "DEGRADED",
+            "latency": {
+                "baseline_p95_ms": baseline_p95,
+                "current_p95_ms": current_p95,
+                "delta_pct": round(delta_pct, 2),
+                "confidence": confidence,
+            },
+            "meta": {
+                "type": meta.get("type"),
+                "aggregation": meta.get("aggregation"),
+                "sample_count": sample_count,
+            },
+        }
+
     def generate(
         self,
         output_dir: str,
@@ -187,18 +242,26 @@ class ReasoningReport:
         with open(os.path.join(output_dir, "reasoning_report.txt"), "w") as f:
             f.write("\n".join(lines))
 
+        report_json = {
+            "metadata": metadata,
+            "client_host": client_host,
+            "network": network,
+            "client_metrics": client_metrics,
+            "baseline": baseline,
+            "anomaly": anomaly,
+            "server_correlation": server_correlation,
+            "decision": decision,
+        }
+
+        # 🔑 NEW: baseline comparison export
+        baseline_comparison = build_baseline_comparison(
+            client_metrics=client_metrics,
+            baseline=baseline,
+            anomaly=anomaly,
+        )
+
+        if baseline_comparison:
+            report_json["baseline_comparison"] = baseline_comparison
+
         with open(os.path.join(output_dir, "reasoning_report.json"), "w") as f:
-            json.dump(
-                {
-                    "metadata": metadata,
-                    "client_host": client_host,
-                    "network": network,
-                    "client_metrics": client_metrics,
-                    "baseline": baseline,
-                    "anomaly": anomaly,
-                    "server_correlation": server_correlation,
-                    "decision": decision,
-                },
-                f,
-                indent=2,
-            )
+            json.dump(report_json, f, indent=2)
