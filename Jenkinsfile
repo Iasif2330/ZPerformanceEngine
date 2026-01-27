@@ -418,11 +418,12 @@ pipeline {
 
     post {
     always {
-        mail(
-            from: 'aansari_c@ontic.co',
-            to: 'aansari_c@ontic.co',
-            subject: "[Jenkins] ${env.JOB_NAME} #${env.BUILD_NUMBER} — ${currentBuild.currentResult}",
-            body: """
+        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+            mail(
+                from: 'aansari_c@ontic.co',
+                to: 'aansari_c@ontic.co',
+                subject: "[Jenkins] ${env.JOB_NAME} #${env.BUILD_NUMBER} — ${currentBuild.currentResult}",
+                body: """
 Job: ${env.JOB_NAME}
 Build: #${env.BUILD_NUMBER}
 Result: ${currentBuild.currentResult}
@@ -433,7 +434,8 @@ Load Profile: ${env.LOAD_PROFILE}
 Build URL:
 ${env.BUILD_URL}
 """
-        )
+            )
+        }
     }
 
     success {
