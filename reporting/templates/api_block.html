@@ -1,0 +1,19 @@
+<div class="box">
+  <h2>🔍 API Performance</h2>
+
+  {% for api in report.api_metrics %}
+    <h3>✅ {{ api.api_name }}</h3>
+    <table>
+      <tr><td>Avg</td><td>{{ api.avg_ms }} ms</td></tr>
+      <tr><td>P95</td><td>{{ api.p95_ms }} ms</td></tr>
+      <tr><td>P99</td><td>{{ api.p99_ms }} ms</td></tr>
+      <tr><td>Throughput</td><td>{{ api.throughput_rps }} req/s</td></tr>
+      <tr><td>Error Rate</td><td>{{ api.error_rate_pct }} %</td></tr>
+    </table>
+
+    <p>
+      <b>AI Summary:</b><br>
+      {{ report.api_summaries[api.api_name] | replace('\n', '<br>') | safe }}
+    </p>
+  {% endfor %}
+</div>

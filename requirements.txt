@@ -10,3 +10,5 @@ requests>=2.31
 # Data processing & analysis (metrics, baselines)
 pandas>=2.0
 numpy>=1.26
+
+jinja2>=3.1.0

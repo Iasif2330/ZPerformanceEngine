@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Performance Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 32px; }
+    h1, h2, h3 { color: #222; }
+    .ok { color: green; }
+    .warn { color: orange; }
+    .bad { color: red; }
+    .box { border: 1px solid #ddd; padding: 16px; margin-bottom: 24px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+  </style>
+</head>
+
+<body>
+
+<h1>📊 Performance Metrics Report</h1>
+
+<div class="box">
+  <b>Environment:</b> {{ report.context.environment }}<br/>
+  <b>Load Profile:</b> {{ report.context.load_profile }}<br/>
+  <b>Duration:</b> {{ report.context.duration_seconds }} seconds<br/>
+  <b>Regression Status:</b>
+  <span class="{% if report.regression_label == 'GREEN' %}ok{% elif report.regression_label == 'AMBER' %}warn{% else %}bad{% endif %}">
+    {{ report.regression_label }}
+  </span>
+</div>
+
+{% include "executive_summary.html" %}
+{% include "run_metrics.html" %}
+{% include "api_block.html" %}
+{% include "infra_metrics.html" %}
+
+</body>
+</html>

@@ -1,0 +1,31 @@
+<div class="box">
+  <h2>🖥 Infrastructure Summary</h2>
+
+  {% if report.infra_metrics %}
+    <table>
+      <tr>
+        <td>Correlation Status</td>
+        <td>{{ report.infra_metrics.status }}</td>
+      </tr>
+      <tr>
+        <td>Server Throttled</td>
+        <td>{{ report.infra_metrics.server_throttled }}</td>
+      </tr>
+      <tr>
+        <td>Server Saturated</td>
+        <td>{{ report.infra_metrics.server_saturated }}</td>
+      </tr>
+      <tr>
+        <td>Memory Pressure</td>
+        <td>{{ report.infra_metrics.server_mem_pressure }}</td>
+      </tr>
+    </table>
+  {% else %}
+    <p>No server-side infrastructure correlation data was available for this run.</p>
+  {% endif %}
+
+  <p>
+    <b>AI Summary:</b><br>
+    {{ report.infra_summary | replace('\n', '<br>') | safe }}
+  </p>
+</div>

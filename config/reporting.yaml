@@ -1,0 +1,18 @@
+ai:
+  enabled: false              # master switch
+  model: gpt-4o-mini
+  temperature: 0.2
+
+baseline:
+  min_samples_for_medium_confidence: 3
+  min_samples_for_high_confidence: 5
+  weak_baseline_delta_threshold_pct: 5.0
+
+rendering:
+  include_executive_summary: true
+  include_api_summaries: true
+  include_infra_summary: true
+  include_raw_metrics: false
+
+output:
+  format: html                # future: json, markdown

@@ -26,7 +26,6 @@ apiHeaders:
   occd: |
     {"effectiveConnectionSpeed":"4g","userAgent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36","platform":"MacIntel"}
   occd-browser-url: "__BASE_URL__/#/geo-threat-management/692eabb1bba3617fadf5143f?refTVT=MONITORING_MAP"
-  ocsh: "ee902eea-8d6a-4def-ae06-712cf6ef8742"
   origin: "__BASE_URL__"
   pragma: "no-cache"
   priority: "u=1, i"

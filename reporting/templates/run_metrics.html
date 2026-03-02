@@ -1,0 +1,12 @@
+<div class="box">
+  <h2>⚡ Overall Performance Metrics</h2>
+  <table>
+    <tr><th>Metric</th><th>Value</th></tr>
+    <tr><td>Total Requests</td><td>{{ report.run_metrics.total_requests }}</td></tr>
+    <tr><td>Average Latency</td><td>{{ report.run_metrics.avg_ms }} ms</td></tr>
+    <tr><td>P95 Latency</td><td>{{ report.run_metrics.p95_ms }} ms</td></tr>
+    <tr><td>P99 Latency</td><td>{{ report.run_metrics.p99_ms }} ms</td></tr>
+    <tr><td>Throughput</td><td>{{ report.run_metrics.throughput_rps }} req/s</td></tr>
+    <tr><td>Error Rate</td><td>{{ report.run_metrics.error_rate_pct }} %</td></tr>
+  </table>
+</div>
