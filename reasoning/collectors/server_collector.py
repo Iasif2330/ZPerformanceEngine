@@ -113,98 +113,91 @@ class ServerCollector:
             # --------------------------------------------------
             {
                 "refId": "CPU_PCT",
-                "expr": (
-                    # ---------------------------
-                    # CPU USAGE (numerator)
-                    # ---------------------------
-                    # container_cpu_usage_seconds_total:
-                    #   - Actual CPU time consumed by containers
-                    # rate(...[5m]):
-                    #   - Converts cumulative CPU time into cores used
-                    'sum(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) '
-                    '/'
-                    # ---------------------------
-                    # CPU LIMIT (denominator)
-                    # ---------------------------
-                    # container_spec_cpu_quota / container_spec_cpu_period:
-                    #   - CPU limit defined in Kubernetes pod spec
-                    #   - Expressed in CPU cores
-                    'sum(container_spec_cpu_quota{container!="",pod!=""} '
-                    '/ container_spec_cpu_period{container!="",pod!=""}) '
-                    # ---------------------------
-                    # NORMALIZATION
-                    # ---------------------------
-                    '* 100'
-                ),
+                "expr_candidates": [
+                    # Primary: cAdvisor container usage / cAdvisor limits
+                    (
+                        'sum(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) '
+                        '/ '
+                        'sum(container_spec_cpu_quota{container!="",pod!=""} '
+                        '/ container_spec_cpu_period{container!="",pod!=""}) '
+                        '* 100'
+                    ),
+                    # Fallback: cAdvisor container usage / kube-state limits
+                    (
+                        'sum(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) '
+                        '/ '
+                        'sum(kube_pod_container_resource_limits{resource="cpu",unit="core"}) '
+                        '* 100'
+                    ),
+                    # Last resort: node-level CPU busy %
+                    (
+                        '(1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m]))) '
+                        '* 100'
+                    ),
+                ],
             },
-
             # --------------------------------------------------
             # MEMORY USAGE %
             # --------------------------------------------------
             {
                 "refId": "MEM_PCT",
-                "expr": (
-                    # ---------------------------
-                    # MEMORY USAGE (numerator)
-                    # ---------------------------
-                    # container_memory_working_set_bytes:
-                    #   - Memory actively used by containers
-                    'sum(container_memory_working_set_bytes{container!="",pod!=""}) '
-                    '/'
-                    # ---------------------------
-                    # MEMORY LIMIT (denominator)
-                    # ---------------------------
-                    # container_spec_memory_limit_bytes:
-                    #   - Memory limit defined in Kubernetes pod spec
-                    'sum(container_spec_memory_limit_bytes{container!="",pod!=""}) '
-                    # ---------------------------
-                    # NORMALIZATION
-                    # ---------------------------
-                    '* 100'
-                ),
+                "expr_candidates": [
+                    # Primary: cAdvisor container memory / cAdvisor limits
+                    (
+                        'sum(container_memory_working_set_bytes{container!="",pod!=""}) '
+                        '/ '
+                        'sum(container_spec_memory_limit_bytes{container!="",pod!=""}) '
+                        '* 100'
+                    ),
+                    # Fallback: cAdvisor container memory / kube-state limits
+                    (
+                        'sum(container_memory_working_set_bytes{container!="",pod!=""}) '
+                        '/ '
+                        'sum(kube_pod_container_resource_limits{resource="memory",unit="byte"}) '
+                        '* 100'
+                    ),
+                    # Last resort: node-level memory used %
+                    (
+                        '(1 - (sum(node_memory_MemAvailable_bytes) '
+                        '/ sum(node_memory_MemTotal_bytes))) * 100'
+                    ),
+                ],
             },
-
             # --------------------------------------------------
             # CPU THROTTLING %
             # --------------------------------------------------
             {
                 "refId": "CPU_THROTTLE_PCT",
-                "expr": (
-                    # ---------------------------
-                    # CPU THROTTLED TIME (numerator)
-                    # ---------------------------
-                    # container_cpu_cfs_throttled_seconds_total:
-                    #   - Time CPU was denied due to CFS quota (limits)
-                    'sum(rate(container_cpu_cfs_throttled_seconds_total{container!="",pod!=""}[5m])) '
-                    '/'
-                    # ---------------------------
-                    # CPU REQUESTED TIME (denominator)
-                    # ---------------------------
-                    # rate(container_cpu_usage_seconds_total):
-                    #   - CPU time containers attempted to use
-                    'sum(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) '
-                    # ---------------------------
-                    # NORMALIZATION
-                    # ---------------------------
-                    '* 100'
-                ),
+                "expr_candidates": [
+                    # Primary: cAdvisor throttling ratio
+                    (
+                        'sum(rate(container_cpu_cfs_throttled_seconds_total{container!="",pod!=""}[5m])) '
+                        '/ '
+                        'sum(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) '
+                        '* 100'
+                    ),
+                    # Fallback: node-level scheduler pressure proxy (not true CFS throttling)
+                    (
+                        'sum(rate(node_pressure_cpu_waiting_seconds_total[5m])) * 100'
+                    ),
+                ],
             },
-
             # --------------------------------------------------
             # MEMORY PRESSURE %
             # --------------------------------------------------
             {
                 "refId": "MEM_PRESSURE_PCT",
-                "expr": (
-                    # ---------------------------
-                    # MEMORY PRESSURE (PSI)
-                    # ---------------------------
-                    # container_pressure_memory_stalled_seconds_total:
-                    #   - Time containers were stalled waiting for memory
-                    #   - Indicates memory contention (not heap size)
-                    'sum(rate(container_pressure_memory_stalled_seconds_total{container!="",pod!=""}[5m])) '
-                    '* 100'
-                ),
+                "expr_candidates": [
+                    # Primary: container memory PSI
+                    (
+                        'sum(rate(container_pressure_memory_stalled_seconds_total{container!="",pod!=""}[5m])) '
+                        '* 100'
+                    ),
+                    # Fallback: node memory PSI
+                    (
+                        'sum(rate(node_pressure_memory_stalled_seconds_total[5m])) * 100'
+                    ),
+                ],
             },
         ]
 
@@ -236,19 +229,51 @@ class ServerCollector:
         results = {}
 
         for q in queries:
-            resp = requests.get(
-                base_url,
-                headers={"Authorization": f"Bearer {self.api_token}"},
-                params={
-                    "query": q["expr"],
-                    "start": start_ts,
-                    "end": end_ts,
-                    "step": step,
-                },
-                timeout=90,
-            )
-            resp.raise_for_status()
-            results[q["refId"]] = resp.json()
+            ref_id = q["refId"]
+            chosen = None
+            last_json = None
+
+            for idx, expr in enumerate(q.get("expr_candidates", []), start=1):
+                resp = requests.get(
+                    base_url,
+                    headers={"Authorization": f"Bearer {self.api_token}"},
+                    params={
+                        "query": expr,
+                        "start": start_ts,
+                        "end": end_ts,
+                        "step": step,
+                    },
+                    timeout=90,
+                )
+                resp.raise_for_status()
+                payload = resp.json()
+                last_json = payload
+
+                series = payload.get("data", {}).get("result", [])
+                if series:
+                    chosen = {
+                        "candidate_index": idx,
+                        "expr": expr,
+                        "payload": payload,
+                    }
+                    break
+
+            if chosen is not None:
+                results[ref_id] = {
+                    **chosen["payload"],
+                    "_meta": {
+                        "candidate_index": chosen["candidate_index"],
+                        "used_fallback": chosen["candidate_index"] > 1,
+                    },
+                }
+            else:
+                results[ref_id] = {
+                    **(last_json or {"status": "success", "data": {"result": []}}),
+                    "_meta": {
+                        "candidate_index": None,
+                        "used_fallback": False,
+                    },
+                }
 
         return {"results": results}
 
