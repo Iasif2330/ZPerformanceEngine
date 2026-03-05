@@ -1,465 +1,532 @@
-# ZPerformanceEngine Setup Guide
+# Performance Testing Framework Setup Guide
 
-## 1) What this repository does
+_(Docker + Jenkins + ZPerformanceEngine)_
 
-`ZPerformanceEngine` is a YAML-driven performance test framework built around:
+This document explains how to set up and run the Performance Testing Framework on a new Mac machine.
 
-- dynamic JMeter test-plan generation via Groovy
-- containerized execution via Docker
-- CI orchestration via Jenkins pipeline
-- pre/post-run reasoning over client/network/server signals
-- HTML executive report generation
+The framework uses:
 
-Core run flow:
+- Docker (execution environment)
+- Jenkins (pipeline orchestration)
+- Groovy Active Choices (dynamic parameters)
+- YAML configuration files
+- JMeter inside Docker
 
-1. Build Docker image.
-2. Generate a functional JMX (`1 user`) and run a functional gate.
-3. Select eligible APIs from functional pass results.
-4. Generate final load JMX and run load test.
-5. Run reasoning engine (preflight and postrun).
-6. Generate executive HTML report and archive artifacts.
+## 1. Clone the Framework Repository
 
----
+### Objective
 
-## 2) Repository structure (detailed)
+Place the framework in a shared location accessible by Jenkins and the user.
 
-### Root files
-
-- `Dockerfile`: Runtime image (Temurin 11, Groovy, Python, JMeter 5.6.3, requirements, listener jar).
-- `Jenkinsfile`: Full CI pipeline (build, test generation, runs, reasoning, archive, email).
-- `requirements.txt`: Python dependencies used inside container.
-- `jmeter-prometheus-listener.jar`: Required JMeter backend listener plugin.
-- `SETUP.md`: This document.
-
-### `engine/`
-
-- `engine/generateTestPlan.groovy`: Main dynamic JMX generator from YAML + CLI system properties.
-- `engine/loadYaml.groovy`: SnakeYAML loader helper.
-
-### `lib/`
-
-- `lib/snakeyaml.jar`: YAML parser dependency used by Groovy generator.
-
-### `config/`
-
-- `config/environments.yaml`: Environment mapping (`baseUrl`, `host`, user CSV, payload files).
-- `config/apis.yaml`: API sampler definitions.
-- `config/api-groups.yaml`: Named API groups for grouped execution.
-- `config/headers.yaml`: Login/API header templates with `__BASE_URL__` substitution.
-- `config/load-profile.yaml`: Universal overrides + named load profiles.
-- `config/assertions.yaml`: YAML-driven per-API/default JMeter assertions.
-- `config/reporting.yaml`: Reporting/AI toggles and rendering options.
-
-### `config/users/`
-
-- `config/users/autoprod.csv`
-- `config/users/autoprod1.csv`
-- `config/users/dev.csv`
-- `config/users/qa.csv`
-
-Each file is expected to contain `username,password` CSV and is consumed by JMeter `CSVDataSet`.
-
-### `data/`
-
-Payload bodies for API requests by environment:
-
-- `data/login-payload.json`
-- `data/qa/*.json`
-- `data/dev/*.json`
-- `data/autoprod/*.json`
-- `data/autoprod1/*.json`
-
-### `reasoning/`
-
-Python reasoning engine and policies:
-
-- `reasoning/main.py`: Entry point (preflight/postrun modes).
-- `reasoning/collectors/*.py`: client host, network, client metrics, server telemetry collection.
-- `reasoning/validators/*.py`: host/network invariant validators.
-- `reasoning/detectors/anomaly_detector.py`: baseline vs current anomaly checks.
-- `reasoning/correlators/correlator.py`: server-state correlation and attribution.
-- `reasoning/decisions/decision_engine.py`: review/decision logic (currently diagnostic-oriented flow).
-- `reasoning/reports/reasoning_report.py`: writes `reasoning_report.txt/json`.
-- `reasoning/explanations/explanation_engine.py`: deterministic explanation rules.
-
-Rules/policies:
-
-- `reasoning/rules/client_host_rules.yaml`
-- `reasoning/rules/network_rules.yaml`
-- `reasoning/rules/client_metrics_rules.yaml`
-- `reasoning/rules/server_rules.yaml`
-- `reasoning/baselines/baseline_policy.yaml`
-- `reasoning/decisions/auto_accept_rules.yaml`
-
-### `reporting/` (currently local/untracked in this workspace)
-
-- `reporting/orchestrator.py`
-- `reporting/aggregators/*.py`
-- `reporting/agents/*.py`
-- `reporting/models/*.py`
-- `reporting/decisions/*.py`
-- `reporting/renderers/*.py`
-- `reporting/templates/*.html`
-
-### `scripts/`
-
-- `scripts/generate_executive_report.py`: Builds `output/executive/index.html` from JMeter stats/JTL.
-- `scripts/read_yaml.py`: Utility script to print YAML as JSON.
-- `scripts/test_*.py` (currently local/untracked in this workspace): reporting-related tests.
-
----
-
-## 3) Prerequisites on another machine
-
-## Mandatory
-
-- Git
-- Docker Engine + Docker CLI
-- Network access from runner to:
-  - target API hosts in `config/environments.yaml`
-  - Grafana endpoint configured in Jenkins (`GRAFANA_URL`)
-
-## For Jenkins-based runs
-
-- Jenkins with Pipeline support.
-- Jenkins agent where Docker is installed and Jenkins user can execute Docker.
-- Jenkins SMTP/mail configured if keeping `mail(...)` post action.
-
-## Optional (local development outside Docker)
-
-- Python 3.10+ (for local script/testing convenience)
-- Groovy + JDK (only if generating JMX outside container)
-- Ollama (`ollama run mistral`) only if using local AI summaries from `reporting/orchestrator.py`
-- `OPENAI_API_KEY` + `openai` pip package only if using `reporting/agents/llm_client.py`
-
----
-
-## 4) Security and secrets
-
-This repo currently stores credentials in `config/users/*.csv` in plaintext. Before sharing externally:
-
-1. Rotate credentials.
-2. Replace with non-production/test accounts.
-3. Prefer secret injection (Jenkins credentials + runtime file generation) instead of committing passwords.
-
-Required Jenkins credential(s):
-
-- String credential ID: `grafana-readonly-token`
-
----
-
-## 5) Local run (Docker, no Jenkins)
-
-From repo root:
+### Step 1 — Navigate to Shared Folder
 
 ```bash
-docker build -t zperformance-engine .
-mkdir -p output reasoning/baselines/snapshots
+cd /Users/Shared
 ```
 
-Generate JMX (example):
+If the folder does not exist:
 
 ```bash
-docker run --rm \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  zperformance-engine \
-  groovy -Denv=qa -Dprofile=baseline-minimal -DloopLogin=true engine/generateTestPlan.groovy
+sudo mkdir -p /Users/Shared
 ```
 
-Run JMeter with generated plan:
+### Step 2 — Clone the Repository
 
 ```bash
-docker run --rm \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  zperformance-engine \
-  sh -c 'jmeter -n -t output/generated-test-plan.jmx -l output/results.jtl -e -o output/dashboard'
+git clone <REPO_URL>
 ```
 
-Run preflight reasoning:
+Example:
 
 ```bash
-docker run --rm \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  -e ENVIRONMENT=qa \
-  -e LOAD_PROFILE=baseline-minimal \
-  -e TARGET_HOST=qa.ontic.ai \
-  -e REASONING_PHASE=preflight \
-  -e GRAFANA_URL=<grafana-url> \
-  -e GRAFANA_DS_UID=<prom-ds-uid> \
-  -e GRAFANA_API_TOKEN=<token> \
-  -e SERVICE_NAME=captain-api \
-  zperformance-engine \
-  python3 -m reasoning.main
+git clone https://github.com/your-org/ZPerformanceEngine.git
 ```
 
-Run postrun reasoning requires:
+After cloning, the structure should be:
 
-- `output/test_start_ts`
-- `output/test_end_ts`
-- `output/results.jtl`
-- `output/dashboard/statistics.json`
-- preflight snapshot at `output/reasoning/preflight_snapshot.yaml`
+```
+/Users/Shared/ZPerformanceEngine
+```
 
-Generate executive HTML:
+Verify:
 
 ```bash
-docker run --rm \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  zperformance-engine \
-  python3 scripts/generate_executive_report.py output/dashboard/statistics.json output/executive
+ls /Users/Shared
 ```
 
----
+You should see:
 
-## 6) Jenkins setup (recommended production path)
+```
+ZPerformanceEngine
+```
 
-## 6.1 Create pipeline job
+## 2. Install Docker Desktop
 
-- Job type: Pipeline (or Multibranch Pipeline).
-- SCM: point to this repo.
-- Pipeline source: `Jenkinsfile` from SCM.
+### Step 1 — Install Docker
 
-## 6.2 Install Jenkins plugins
-
-- Pipeline
-- Git
-- Credentials Binding
-- Mailer
-- Active Choices (if using dynamic dropdown parameters)
-
-## 6.3 Configure credentials
-
-- Add string credential with ID `grafana-readonly-token`.
-
-## 6.4 Configure parameters (UI-managed currently)
-
-`Jenkinsfile` reads these `params.*` values but does not define them inside pipeline code, so configure in Jenkins UI:
-
-- `ENVIRONMENT`
-- `LOAD_PROFILE`
-- `SELECTED_APIS`
-- `LOOPLOGIN`
-- `DEBUG`
-- `DURATION`
-
-## 6.5 Jenkinsfile portability fix required
-
-Current `Jenkinsfile` has:
-
-- `DOCKER_CLI = "/Applications/Docker.app/Contents/Resources/bin/docker"`
-
-This is macOS-specific. On Linux Jenkins agents, change to:
-
-- `DOCKER_CLI = "docker"`
-
-(or make node-specific).
-
-## 6.6 Jenkins global config dependencies
-
-- SMTP configured if `post { always { mail(...) } }` should work.
-- Agent permissions to run Docker commands.
-
----
-
-## 7) YAML-driven behavior reference
-
-## Environment selection
-
-`-Denv=<name>` must exist in `config/environments.yaml`.
-
-## Load profile selection
-
-`-Dprofile=<name>` must exist in `config/load-profile.yaml`.
-
-## API selection
-
-- `-Dgroup=<group-name>` from `config/api-groups.yaml`
-- `-Dapis=api1,api2,...` explicit list
-- If no group/apis is provided, all APIs run.
-- Login sampler is always forced first.
-
-## Assertions
-
-Configured in `config/assertions.yaml` and converted to JSR223 assertions in generated JMX.
-
----
-
-## 8) YAML <-> Jenkins dropdown sync (your current flow and recommended flow)
-
-You mentioned you use a local mirror repo copy to refresh Jenkins parameter dropdowns. That is an external dependency and must be handed over.
-
-## Current flow (works but fragile)
-
-- Active Choices scripts read YAML from a fixed local filesystem path.
-- You manually update/sync local repo clone.
-- Jenkins dropdowns update based on that local clone.
-
-Handover must include:
-
-1. exact local path on Jenkins host,
-2. update method (`git pull` schedule/manual),
-3. exact Active Choices Groovy scripts used for each parameter.
-
-## Recommended flow (more portable)
-
-- Remove path dependency on personal/local mirror.
-- Read YAML from current Jenkins workspace checkout.
-- Keep one source of truth: SCM branch used by the job.
-
-Typical pattern:
-
-1. Add a lightweight “refresh parameters” stage/job that checks out SCM.
-2. Active Choices scripts parse files from workspace path.
-3. Re-run refresh after merges to keep dropdowns aligned.
-
----
-
-## 9) What must be committed before sharing
-
-In this current workspace, `git status` shows local-only assets not yet committed (for example `reporting/`, `config/reporting.yaml`, and test scripts). If another person clones now, they will not get those files.
-
-Before sharing:
-
-1. Commit/push required untracked files.
-2. Remove non-portable local artifacts (`.venv`, caches, `test-results`, etc).
-3. Verify with a clean clone on a second machine.
-
-Validation checklist:
+Using Homebrew:
 
 ```bash
-git clone <repo-url> /tmp/zperf-verify
-cd /tmp/zperf-verify
-docker build -t zperformance-engine .
+brew install --cask docker
 ```
 
-Then run one minimal generation/test cycle.
+If you see the message:
 
----
-
-## 10) Known issues to fix (recommended)
-
-1. `config/environments.yaml` has `autoprod1.baseUrl: "https:autoprod1.ontic.ai"` (missing `//`).
-2. Jenkins Docker path is hardcoded for macOS.
-3. Credentials are stored in plaintext CSV in repo.
-4. Parameter definitions are not versioned in `Jenkinsfile` (UI drift risk).
-
----
-
-## 11) Operational output paths
-
-Generated at runtime (ignored by git):
-
-- `output/generated-test-plan.jmx`
-- `output/functional-test-plan.jmx`
-- `output/functional_results.jtl`
-- `output/results.jtl`
-- `output/dashboard/`
-- `output/reasoning/`
-- `output/executive/`
-- `output/performance-reports.zip`
-
-Baseline snapshots:
-
-- `reasoning/baselines/snapshots/*.json`
-
----
-
-## 12) Quick handover checklist
-
-1. Push complete repo state (including currently local/untracked required files).
-2. Rotate and secure credentials.
-3. Set up Jenkins job + plugins + credentials + SMTP.
-4. Fix Docker CLI path in Jenkinsfile for target agent OS.
-5. Recreate/standardize Jenkins parameters.
-6. Rewire YAML dropdown scripts to workspace-based path (recommended).
-7. Run one known profile (`baseline-minimal`) in `qa` and verify artifacts are produced.
-
-
-## 13) Exact file inventory
-
-### Tracked files in Git
-
-```text
-.gitignore
-Dockerfile
-Jenkinsfile
-config/api-groups.yaml
-config/apis.yaml
-config/assertions.yaml
-config/environments.yaml
-config/headers.yaml
-config/load-profile.yaml
-config/users/autoprod.csv
-config/users/autoprod1.csv
-config/users/dev.csv
-config/users/qa.csv
-data/autoprod/allfeeds-payload.json
-data/autoprod/createentity-payload.json
-data/autoprod/crimedata-payload.json
-data/autoprod/crimeevents-payload.json
-data/autoprod/feedpreview-payload.json
-data/autoprod/riskintelligence-payload.json
-data/autoprod1/allfeeds-payload.json
-data/autoprod1/createentity-payload.json
-data/autoprod1/crimeevents-payload.json
-data/autoprod1/riskintelligence-payload.json
-data/dev/allfeeds-payload.json
-data/dev/crimedata-payload.json
-data/dev/riskintelligence-payload.json
-data/login-payload.json
-data/qa/accepttac-payload.json
-data/qa/allfeeds-payload.json
-data/qa/createentity-payload.json
-data/qa/crimedata-payload.json
-data/qa/crimeevents-payload.json
-data/qa/feedpreview-payload.json
-data/qa/riskintelligence-payload.json
-engine/generateTestPlan.groovy
-engine/loadYaml.groovy
-jmeter-prometheus-listener.jar
-lib/snakeyaml.jar
-reasoning/__init__.py
-reasoning/baselines/baseline_policy.yaml
-reasoning/baselines/baseline_store.py
-reasoning/collectors/client_host_collector.py
-reasoning/collectors/client_metrics_collector.py
-reasoning/collectors/network_collector.py
-reasoning/collectors/server_collector.py
-reasoning/correlators/correlator.py
-reasoning/decisions/auto_accept_rules.yaml
-reasoning/decisions/decision_engine.py
-reasoning/detectors/anomaly_detector.py
-reasoning/explanations/explanation_engine.py
-reasoning/main.py
-reasoning/reports/reasoning_report.py
-reasoning/rules/client_host_rules.yaml
-reasoning/rules/client_metrics_rules.yaml
-reasoning/rules/network_rules.yaml
-reasoning/rules/server_rules.yaml
-reasoning/validators/client_host_validator.py
-reasoning/validators/network_validator.py
-requirements.txt
-scripts/generate_executive_report.py
-scripts/read_yaml.py
+```
+Error: It seems there is already an App at '/Applications/Docker.app'
 ```
 
-### Currently untracked in this workspace
+Docker is already installed.
 
-```text
-SETUP.md
-config/reporting.yaml
-reporting/
-scripts/test_api_summary_agent.py
-scripts/test_baseline_aggregator.py
-scripts/test_executive_agent.py
-scripts/test_infra_aggregator.py
-scripts/test_infra_summary_agent.py
-scripts/test_jmeter_aggregator.py
-scripts/test_llm_client.py
-scripts/test_reporting.py
-test-results/
+### Step 2 — Open Docker Desktop
+
+Open Docker:
+
+```bash
+open -a Docker
+```
+
+Or from Applications → Docker
+
+### Step 3 — Complete Default Setup
+
+When Docker launches:
+
+1. Accept terms
+2. Login and complete default setup
+
+### Step 4 — Verify Docker is Running
+
+Ensure the Docker whale icon appears in the Mac menu bar.
+
+Check Docker via terminal:
+
+```bash
+docker --version
+```
+
+Example output:
+
+```
+Docker version 27.x.x
+```
+
+## 3. Disable Docker Credential Store
+
+### Why this is required
+
+Some environments cause Docker credential helper errors during image builds.
+
+Example error:
+
+```
+error getting credentials - err: exit status 1
+```
+
+To avoid this, disable the Docker credential helper.
+
+### Step 1 — Open Docker Config
+
+```bash
+cat ~/.docker/config.json
+```
+
+Example content:
+
+```json
+{
+  "auths": {},
+  "credsStore": "desktop",
+  "currentContext": "desktop-linux"
+}
+```
+
+### Step 2 — Edit the File
+
+```bash
+nano ~/.docker/config.json
+```
+
+Remove:
+
+```json
+"credsStore": "desktop"
+```
+
+Final file should look like:
+
+```json
+{
+  "auths": {},
+  "currentContext": "desktop-linux"
+}
+```
+
+Save and exit.
+
+## 4. Install Jenkins
+
+### Step 1 — Install Jenkins LTS
+
+```bash
+brew install jenkins-lts
+```
+
+### Step 2 — Start Jenkins
+
+```bash
+brew services start jenkins-lts
+```
+
+Verify:
+
+```bash
+brew services list
+```
+
+Expected output:
+
+```
+jenkins-lts started
+```
+
+### Step 3 — Open Jenkins
+
+Open browser:
+
+```
+http://localhost:8080
+```
+
+## 5. Complete Default Jenkins Setup
+
+When Jenkins opens:
+
+1. Retrieve initial admin password.
+
+Run:
+
+```bash
+cat ~/.jenkins/secrets/initialAdminPassword
+```
+
+Copy the password and paste it into Jenkins.
+
+### Step 2 — Install Recommended Plugins
+
+Choose:
+
+- **Install Suggested Plugins**
+
+Wait for installation.
+
+## 6. Install Required Jenkins Plugin
+
+### Active Choices Plugin
+
+Go to:
+
+- Manage Jenkins → Manage Plugins → Available Plugins
+
+Search for:
+
+```
+Active Choices Plugin
+```
+
+Install it and restart Jenkins if prompted.
+
+## 7. Add Required Jenkins Credential
+
+The framework requires a Grafana read-only token.
+
+### Step 1 — Navigate to Credentials
+
+- Manage Jenkins → Manage Credentials → Global
+
+### Step 2 — Add Credential
+
+Select:
+
+- **Add Credentials**
+
+Configure:
+| Field | Value |
+|-------|-------|
+| Kind | Secret Text |
+| Secret | 976d959cc5dc4273a4eb9adce223715d |
+| ID | grafana-readonly-token |
+
+Save.
+
+## 8. Create Jenkins Pipeline Job
+
+### Step 1 — Create Job
+
+Go to:
+
+- **New Item**
+
+Enter name:
+
+```
+ZPerformanceEngine
+```
+
+Select:
+
+- **Pipeline**
+
+Click **OK**
+
+## 9. Enable Parameterized Build
+
+Inside the job configuration:
+Enable:
+
+- **This project is parameterized**
+
+## 10. Add Jenkins Parameters
+
+The pipeline uses Active Choices parameters that dynamically read YAML configuration files from the repository.
+
+### Parameter 1 — ENVIRONMENT
+
+**Type:** Active Choices Parameter
+
+**Configuration:**
+
+- Disable: **Use Groovy Sandbox**
+- Then approve the script.
+
+**Groovy Script:**
+
+```groovy
+import org.yaml.snakeyaml.Yaml
+
+def yamlFile = new File("/Users/Shared/ZPerformanceEngine/config/environments.yaml")
+
+// Safety guard: file must exist
+if (!yamlFile.exists()) {
+    return ["autoprod"]
+}
+
+def yaml = new Yaml()
+def data = yaml.load(yamlFile.text)
+
+// Safety guard: must be a map
+if (!(data instanceof Map)) {
+    return ["autoprod"]
+}
+
+// Collect env names
+def envs = data.keySet()
+               .collect { it.toString() }
+               .sort()
+
+if (envs.isEmpty()) {
+    return ["autoprod"]
+}
+
+return envs
+```
+
+### Parameter 2 — LOAD_PROFILE
+
+**Type:** Active Choices Parameter
+
+- Disable sandbox.
+
+**Groovy Script:**
+
+```groovy
+import org.yaml.snakeyaml.Yaml
+
+def yamlFile = new File("/Users/Shared/ZPerformanceEngine/config/load-profile.yaml")
+
+if (!yamlFile.exists()) {
+    return ["baseline-minimal"]
+}
+
+def yaml = new Yaml()
+def data = yaml.load(yamlFile.text)
+
+if (!(data instanceof Map) || !(data.profiles instanceof List)) {
+    return ["baseline-minimal"]
+}
+
+def profiles = data.profiles
+    .findAll { it instanceof Map && it.name }
+    .collect { it.name.toString() }
+
+if (profiles.isEmpty()) {
+    return ["baseline-minimal"]
+}
+
+return profiles.sort()
+```
+
+### Parameter 3 — LOOP_LOGIN
+
+**Type:** Active Choices Parameter
+
+- Disable sandbox.
+
+**Script:**
+
+```groovy
+return ['true', 'false']
+```
+
+### Parameter 4 — DURATION
+
+**Type:** String Parameter
+
+**Default Value:**
+
+```
+1000000
+```
+
+### Parameter 5 — API_GROUPS
+
+**Type:** Active Choices Parameter
+
+- Disable sandbox.
+
+**Script:**
+
+```groovy
+import org.yaml.snakeyaml.Yaml
+
+def yamlFile = new File("/Users/Shared/ZPerformanceEngine/config/api-groups.yaml")
+
+if (!yamlFile.exists()) return []
+
+def yaml = new Yaml()
+def data = yaml.load(yamlFile.text)
+
+return data.groups.keySet().toList()
+```
+
+### Parameter 6 — SELECTED_APIS
+
+**Type:** Active Choices Parameter
+
+- Disable sandbox.
+
+**Script:**
+
+```groovy
+import org.yaml.snakeyaml.Yaml
+
+def yamlFile = new File("/Users/Shared/ZPerformanceEngine/config/apis.yaml")
+
+if (!yamlFile.exists()) return []
+
+def yaml = new Yaml()
+def data = yaml.load(yamlFile.text)
+
+if (!(data instanceof Map) || !(data.apis instanceof List)) {
+    return []
+}
+
+return data.apis
+    .findAll { it instanceof Map && it.name }
+    .collect { it.name.toString() }
+```
+
+## 11. Configure Pipeline Source
+
+Scroll to Pipeline section.
+
+Select:
+
+- **Pipeline script from SCM**
+
+**SCM:**
+
+- Select: **Git**
+
+**Repository URL:**
+
+- Enter repository URL: `<REPO_URL>`
+
+**Branch:**
+
+- Example: `main`
+
+**Script Path:**
+
+- Example: `Jenkinsfile`
+
+Click:
+
+- **Apply**
+- **Save**
+
+## 12. Run the Pipeline
+
+Go to the job.
+
+Click:
+
+- **Build with Parameters**
+
+Select values for:
+
+- ENVIRONMENT
+- LOAD_PROFILE
+- LOOP_LOGIN
+- DURATION
+- API_GROUPS
+- SELECTED_APIS
+
+Then click:
+
+- **Build**
+
+## 13. Pipeline Execution Flow
+
+When the job runs:
+
+1. Jenkins reads YAML configs
+2. Parameters populate dynamically
+3. Docker image builds (if needed)
+4. JMeter runs inside Docker
+5. Metrics exported to Grafana
+6. Results stored in pipeline artifacts
+
+## Final Setup Architecture
+
+```
+Developer Machine
+      │
+      │
+      ▼
+Jenkins Pipeline
+      │
+      │
+      ▼
+Docker Container
+(Test Execution Environment)
+      │
+      ▼
+Apache JMeter
+(API Load Test Execution)
+      │
+      ▼
+Test Metrics Generated
+(Response time, throughput, error rate)
+      │
+      ▼
+Grafana API (via Read-Only Token)
+Programmatic retrieval of server metrics
+(CPU, Memory, Network, etc.)
+      │
+      ▼
+Combined Test + Server Metrics
+      │
+      ▼
+Reports / Artifacts Generated by Pipeline
 ```
