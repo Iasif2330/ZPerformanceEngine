@@ -255,7 +255,7 @@ pipeline {
                 withCredentials([
                     string(credentialsId: 'grafana-readonly-token', variable: 'GRAFANA_API_TOKEN')
                 ]) {
-                    sh """
+                    sh '''
                         ${DOCKER_CLI} run --rm \
                         -v "${WORKSPACE}:${WORKDIR}" \
                         -w ${WORKDIR} \
@@ -271,7 +271,7 @@ pipeline {
                         -e SERVICE_NAME=captain-api \
                         ${IMAGE_NAME} \
                         python3 -m reasoning.main
-                    """
+                    '''
                 }
             }
         }
