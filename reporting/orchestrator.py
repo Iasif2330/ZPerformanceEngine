@@ -15,7 +15,7 @@ from reporting.aggregators.infra_aggregator import InfraAggregator
 from reporting.decisions.run_validity import RunValidity
 from reporting.decisions.regression_status import RegressionStatus
 
-from reporting.agents.llm_client import LLMClient
+
 from reporting.agents.executive_agent import ExecutiveSummaryAgent
 
 from reporting.agents.api_summary_agent import ApiSummaryAgent
@@ -179,7 +179,10 @@ class ReportOrchestrator:
             regression_label=regression_label
         )
 
+        # For now we always use the local Ollama based client; the remote
+        # OpenAI code path has been deprecated in this workspace.
         llm = LocalLLMClient(model="mistral")
+        print("Using local Ollama LLM client for all summaries")
         executive_agent = ExecutiveSummaryAgent(llm)
 
         if report.is_valid:
