@@ -29,9 +29,7 @@ class LocalLLMClient:
             The factual content to summarise.
         """
 
-        prompt = f"{system_prompt}
-
-{user_prompt}"
+        prompt = f"{system_prompt}\n\n{user_prompt}"
 
         if not self.enabled:
             return "[Local AI unavailable: ollama not installed]"

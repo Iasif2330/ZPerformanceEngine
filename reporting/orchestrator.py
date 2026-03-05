@@ -214,6 +214,7 @@ class ReportOrchestrator:
 
         # 🔟 Render HTML report
         try:
+            self.executive_dir.mkdir(parents=True, exist_ok=True)
             renderer = HtmlRenderer()
             output_file = self.executive_dir / "index.html"
             renderer.render(report, output_file)

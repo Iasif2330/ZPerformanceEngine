@@ -387,7 +387,7 @@ pipeline {
                           -e TARGET_HOST=${env.TARGET_HOST} \
                           -e PYTHONPATH=${WORKDIR} \
                           ${IMAGE_NAME} \
-                          python3 scripts/run_reporting.py ${WORKDIR}
+                          sh -c 'ollama serve & sleep 5; ollama pull mistral; python3 scripts/run_reporting.py ${WORKDIR}'
                     """
                 }
 

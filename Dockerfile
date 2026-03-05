@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     unzip \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://ollama.com/install.sh | sh
 
 # -------------------------------
 # Install Python dependencies
