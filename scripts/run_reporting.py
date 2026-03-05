@@ -34,6 +34,13 @@ def main():
     print(f"Workspace: {workspace_path}\n")
 
     try:
+        # Check if output directory exists
+        output_dir = Path(workspace_path) / "output"
+        if not output_dir.exists():
+            print("⚠️  Output directory not found. Test may not have run.")
+            print(f"   Expected: {output_dir}")
+            print("   Creating minimal report...\n")
+
         orchestrator = ReportOrchestrator(workspace_path)
         report = orchestrator.generate()
 
@@ -41,10 +48,19 @@ def main():
         print("✅ REPORTING COMPLETE")
         print("=" * 60)
         print(f"Report validity: {report.is_valid}")
+        print(f"Total requests: {report.run_metrics.total_requests if report.run_metrics else 'N/A'}")
         print(f"Regression label: {report.regression_label}")
         print(f"Executive summary generated: {report.executive_summary is not None}")
         print(f"API summaries generated: {len(report.api_summaries or {})}")
         print(f"Infrastructure summary generated: {report.infra_summary is not None}")
+        print()
+
+        if report.run_metrics.total_requests == 0:
+            print("⚠️  No test data found. Ensure:")
+            print("   1. JMeter test ran successfully")
+            print("   2. statistics.json was generated")
+            print("   3. Reasoning report was generated")
+            print()
 
     except Exception as e:
         print(f"\n❌ REPORTING FAILED: {e}", file=sys.stderr)

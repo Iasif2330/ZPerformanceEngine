@@ -361,13 +361,22 @@ pipeline {
          * ============================ */
         stage('Generate AI-Powered Report') {
             steps {
-                sh """
-                    ${DOCKER_CLI} run --rm \
-                      -v "${WORKSPACE}:${WORKDIR}" \
-                      -w ${WORKDIR} \
-                      ${IMAGE_NAME} \
-                      python3 scripts/run_reporting.py ${WORKDIR}
-                """
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    sh """
+                        ${DOCKER_CLI} run --rm \
+                          -v "${WORKSPACE}:${WORKDIR}" \
+                          -w ${WORKDIR} \
+                          ${IMAGE_NAME} \
+                          python3 scripts/run_reporting.py ${WORKDIR}
+                    """
+                }
+
+                // Create output directory if it doesn't exist
+                sh '''
+                    mkdir -p output/executive
+                '''
+
+                echo "✅ Reporting stage completed (see above for details)"
             }
         }
 

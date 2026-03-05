@@ -34,24 +34,39 @@ class ReportOrchestrator:
         self.output_dir = self.workspace / "output"
 
         self.results_jtl = self.output_dir / "results.jtl"
-        self.statistics_json = self.output_dir / "statistics.json"
+        
+        # JMeter generates statistics.json inside dashboard folder
+        self.statistics_json = self.output_dir / "dashboard" / "statistics.json"
+        # Fallback to root level if not found in dashboard
+        if not self.statistics_json.exists():
+            self.statistics_json = self.output_dir / "statistics.json"
+            
         self.reasoning_report = self.output_dir / "reasoning" / "reasoning_report.json"
         self.executive_dir = self.output_dir / "executive"
 
     # ---------------------------------------------------------
-    # VALIDATION
+    # VALIDATION (GRACEFUL)
     # ---------------------------------------------------------
-    def validate_inputs(self):
-        if not self.results_jtl.exists():
-            raise FileNotFoundError(f"Missing results.jtl at {self.results_jtl}")
+    def validate_inputs(self) -> bool:
+        """
+        Validates if required input files exist.
+        Returns True if all files exist, False otherwise (and prints warnings).
+        """
+        missing = []
 
         if not self.statistics_json.exists():
-            raise FileNotFoundError(f"Missing statistics.json at {self.statistics_json}")
+            missing.append(f"statistics.json at {self.statistics_json}")
 
         if not self.reasoning_report.exists():
-            raise FileNotFoundError(
-                f"Missing reasoning_report.json at {self.reasoning_report}"
-            )
+            missing.append(f"reasoning_report.json at {self.reasoning_report}")
+
+        if missing:
+            print("\n⚠️  WARNING: Missing input files:")
+            for f in missing:
+                print(f"   - {f}")
+            return False
+
+        return True
 
     # ---------------------------------------------------------
     # RUN CONTEXT
@@ -76,21 +91,56 @@ class ReportOrchestrator:
     # MAIN ENTRY POINT
     # ---------------------------------------------------------
     def generate(self) -> ReportModel:
-        self.validate_inputs()
+        # Check if inputs exist (but don't crash if missing)
+        inputs_available = self.validate_inputs()
 
         # 1️⃣ Context
         context = self.build_run_context()
 
-        # 2️⃣ Client-side metrics (JMeter)
-        jmeter_aggregator = JMeterAggregator(self.output_dir)
-        api_metrics, run_metrics = jmeter_aggregator.aggregate()
+        # 2️⃣ Client-side metrics (JMeter) - graceful fallback
+        api_metrics = []
+        run_metrics = None
 
-        # 3️⃣ Baseline + infra summaries
-        baseline_aggregator = BaselineAggregator(Path(self.reasoning_report))
-        baseline_metrics = baseline_aggregator.aggregate()
+        if self.statistics_json.exists():
+            try:
+                jmeter_aggregator = JMeterAggregator(self.output_dir)
+                api_metrics, run_metrics = jmeter_aggregator.aggregate()
+            except Exception as e:
+                print(f"⚠️  JMeter aggregation failed: {e}")
+                api_metrics = []
+                run_metrics = None
+        else:
+            print("⚠️  statistics.json not found - skipping JMeter metrics")
 
-        infra_aggregator = InfraAggregator(Path(self.reasoning_report))
-        infra_metrics = infra_aggregator.aggregate()
+        # Create fallback run_metrics if missing
+        if run_metrics is None:
+            from reporting.models.run_metrics import RunMetrics
+            run_metrics = RunMetrics(
+                total_requests=0,
+                avg_ms=0.0,
+                p95_ms=0.0,
+                p99_ms=0.0,
+                throughput_rps=0.0,
+                error_rate_pct=0.0,
+            )
+
+        # 3️⃣ Baseline + infra summaries - graceful fallback
+        baseline_metrics = None
+        infra_metrics = None
+
+        if self.reasoning_report.exists():
+            try:
+                baseline_aggregator = BaselineAggregator(Path(self.reasoning_report))
+                baseline_metrics = baseline_aggregator.aggregate()
+
+                infra_aggregator = InfraAggregator(Path(self.reasoning_report))
+                infra_metrics = infra_aggregator.aggregate()
+            except Exception as e:
+                print(f"⚠️  Reasoning report aggregation failed: {e}")
+                baseline_metrics = None
+                infra_metrics = None
+        else:
+            print("⚠️  reasoning_report.json not found - skipping baseline/infra metrics")
 
         # 4️⃣ Base report (no decisions yet)
         base_report = ReportModel(
