@@ -379,15 +379,16 @@ pipeline {
                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                     sh """
                         ${DOCKER_CLI} run --rm \
-                          -v "${WORKSPACE}:${WORKDIR}" \
-                          -w ${WORKDIR} \
-                          -e ENVIRONMENT=${env.ENVIRONMENT} \
-                          -e LOAD_PROFILE=${env.LOAD_PROFILE} \
-                          -e BUILD_NUMBER=${env.BUILD_NUMBER} \
-                          -e TARGET_HOST=${env.TARGET_HOST} \
-                          -e PYTHONPATH=${WORKDIR} \
-                          ${IMAGE_NAME} \
-                          sh -c 'ollama serve & sleep 5; ollama pull mistral; python3 scripts/run_reporting.py ${WORKDIR}'
+                        -v "${WORKSPACE}:${WORKDIR}" \
+                        -v ollama_models:/root/.ollama \
+                        -w ${WORKDIR} \
+                        -e ENVIRONMENT=${env.ENVIRONMENT} \
+                        -e LOAD_PROFILE=${env.LOAD_PROFILE} \
+                        -e BUILD_NUMBER=${env.BUILD_NUMBER} \
+                        -e TARGET_HOST=${env.TARGET_HOST} \
+                        -e PYTHONPATH=${WORKDIR} \
+                        ${IMAGE_NAME} \
+                        sh -c 'ollama serve & sleep 5; ollama pull mistral; python3 scripts/run_reporting.py ${WORKDIR}'
                     """
                 }
 
