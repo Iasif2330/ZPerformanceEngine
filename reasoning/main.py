@@ -482,6 +482,34 @@ def main():
             "evidence": network_validation
         })
 
+        # Always save snapshot (preflight or postrun phase will need it)
+        os.makedirs("output/reasoning", exist_ok=True)
+        with open(snapshot_path, "w") as f:
+            yaml.safe_dump({
+                "client_host": host_validation,
+                "network": network_validation
+            }, f)
+
+        if host_validation.get("fail_fast"):
+            _final_exit(
+                decision="INVALID",
+                confidence="HIGH",
+                reasons=["Client host failed pre-flight health checks"],
+                causal_chain=causal_chain + [{
+                    "step": "Client host pre-flight fail-fast",
+                    "evidence": host_validation
+                }],
+                environment=environment,
+                load_profile=load_profile,
+                run_id=run_id,
+                client_host=host_validation,
+                network=network_validation,
+                client_metrics=None,
+                baseline=None,
+                anomaly=None,
+                server_correlation=None
+            )
+
         if network_validation.get("fail_fast"):
             _final_exit(
                 decision="INVALID",
@@ -501,13 +529,6 @@ def main():
                 anomaly=None,
                 server_correlation=None
             )
-
-        os.makedirs("output/reasoning", exist_ok=True)
-        with open(snapshot_path, "w") as f:
-            yaml.safe_dump({
-                "client_host": host_validation,
-                "network": network_validation
-            }, f)
 
         _final_exit(
             decision="ACCEPT",
