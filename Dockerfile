@@ -11,8 +11,12 @@ RUN apt-get update && apt-get install -y \
     unzip \
     ca-certificates \
     zstd \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -fsSL https://ollama.com/install.sh | sh
+    && rm -rf /var/lib/apt/lists/*
+
+# -------------------------------
+# Install Ollama
+# -------------------------------
+RUN curl -fsSL https://ollama.com/install.sh | sh
 
 # -------------------------------
 # Install Python dependencies
@@ -40,13 +44,15 @@ ENV JMETER_HOME=/opt/apache-jmeter-${JMETER_VERSION}
 ENV PATH=$PATH:$JMETER_HOME/bin
 
 # -------------------------------
-# Install JMeter Prometheus Backend Listener (REQUIRED)
+# Install JMeter Prometheus Backend Listener
 # -------------------------------
-# IMPORTANT:
-# - jmeter-prometheus-listener.jar must exist in the repo root
-# - This enables the BackendListener in your generated JMX
 COPY jmeter-prometheus-listener.jar \
      ${JMETER_HOME}/lib/ext/
+
+# -------------------------------
+# Ollama model storage
+# -------------------------------
+VOLUME ["/root/.ollama"]
 
 # -------------------------------
 # Workspace
@@ -57,3 +63,10 @@ WORKDIR /workspace
 # Copy project files
 # -------------------------------
 COPY . /workspace
+
+# -------------------------------
+# Start Ollama server
+# -------------------------------
+EXPOSE 11434
+
+CMD ["bash", "-c", "ollama serve & sleep 5 && tail -f /dev/null"]
