@@ -8,7 +8,7 @@ class ExecutiveSummaryAgent:
     Explanation only. No decisions.
     """
 
-    def __init__(self, llm: LLMClient):
+    def __init__(self, llm: LocalLLMClient):
         self.llm = llm
 
     def run(self, report: ReportModel) -> str:
