@@ -412,26 +412,6 @@ def main():
             "evidence": host_telemetry
         })
 
-        if host_validation["fail_fast"]:
-            _final_exit(
-                decision="INVALID",
-                confidence="HIGH",
-                reasons=["Client host failed pre-flight health checks"],
-                causal_chain=causal_chain + [{
-                    "step": "Client host pre-flight fail-fast",
-                    "evidence": host_validation
-                }],
-                environment=environment,
-                load_profile=load_profile,
-                run_id=run_id,
-                client_host=host_validation,
-                network=None,
-                client_metrics=None,
-                baseline=None,
-                anomaly=None,
-                server_correlation=None
-            )
-
         section("Network Health")
         if is_localhost(target_host):
             network_validation = {"status": "NOT_APPLICABLE"}
@@ -482,7 +462,7 @@ def main():
             "evidence": network_validation
         })
 
-        # Always save snapshot (preflight or postrun phase will need it)
+        # ALWAYS save snapshot before any fail_fast checks (CRITICAL)
         os.makedirs("output/reasoning", exist_ok=True)
         with open(snapshot_path, "w") as f:
             yaml.safe_dump({
@@ -490,6 +470,7 @@ def main():
                 "network": network_validation
             }, f)
 
+        # NOW check for fail_fast conditions (after snapshot is saved)
         if host_validation.get("fail_fast"):
             _final_exit(
                 decision="INVALID",
