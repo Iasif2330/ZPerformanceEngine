@@ -357,18 +357,16 @@ pipeline {
         }
 
         /* ============================
-         * STAGE 8 — Executive Summary
+         * STAGE 8 — AI-Powered Reporting & Executive Summary
          * ============================ */
-        stage('Generate Executive Summary') {
+        stage('Generate AI-Powered Report') {
             steps {
                 sh """
                     ${DOCKER_CLI} run --rm \
                       -v "${WORKSPACE}:${WORKDIR}" \
                       -w ${WORKDIR} \
                       ${IMAGE_NAME} \
-                      python3 scripts/generate_executive_report.py \
-                        output/dashboard/statistics.json \
-                        output/executive
+                      python3 scripts/run_reporting.py ${WORKDIR}
                 """
             }
         }
