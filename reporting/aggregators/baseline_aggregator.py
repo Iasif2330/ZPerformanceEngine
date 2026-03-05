@@ -7,8 +7,8 @@ from reporting.models.baseline_metrics import BaselineMetrics
 
 
 class BaselineAggregator:
-    def __init__(self, reasoning_report_path: Path):
-        self.reasoning_report_path = reasoning_report_path
+    def __init__(self, reasoning_report_path):
+        self.reasoning_report_path = Path(reasoning_report_path) if not isinstance(reasoning_report_path, Path) else reasoning_report_path
 
     def aggregate(self) -> Optional[BaselineMetrics]:
         if not self.reasoning_report_path.exists():

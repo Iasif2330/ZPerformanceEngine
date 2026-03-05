@@ -1,12 +1,17 @@
 import json
+from pathlib import Path
+from typing import Optional
 from reporting.models.infra_metrics import InfraMetrics
 
 
 class InfraAggregator:
-    def __init__(self, reasoning_report_path: str):
-        self.reasoning_report_path = reasoning_report_path
+    def __init__(self, reasoning_report_path):
+        self.reasoning_report_path = Path(reasoning_report_path) if not isinstance(reasoning_report_path, Path) else reasoning_report_path
 
-    def aggregate(self):
+    def aggregate(self) -> Optional[InfraMetrics]:
+        if not self.reasoning_report_path.exists():
+            return None
+            
         with open(self.reasoning_report_path) as f:
             data = json.load(f)
 
@@ -17,11 +22,15 @@ class InfraAggregator:
         states = server_corr.get("states", {})
         attribution = server_corr.get("attribution", {})
 
-        return InfraMetrics(
-            status=server_corr.get("status"),
-            server_throttled=states.get("server_throttled", False),
-            server_saturated=states.get("server_saturated", False),
-            server_mem_pressure=states.get("server_mem_pressure", False),
-            attribution_distribution=attribution.get("distribution", {}),
-            attribution_reason=attribution.get("reason", ""),
-        )
+        try:
+            return InfraMetrics(
+                status=server_corr.get("status", "UNKNOWN"),
+                server_throttled=states.get("server_throttled", False),
+                server_saturated=states.get("server_saturated", False),
+                server_mem_pressure=states.get("server_mem_pressure", False),
+                attribution_distribution=attribution.get("distribution", {}),
+                attribution_reason=attribution.get("reason", ""),
+            )
+        except Exception as e:
+            print(f"⚠ InfraMetrics initialization failed: {e}")
+            return None

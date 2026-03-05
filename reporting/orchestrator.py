@@ -86,10 +86,10 @@ class ReportOrchestrator:
         api_metrics, run_metrics = jmeter_aggregator.aggregate()
 
         # 3️⃣ Baseline + infra summaries
-        baseline_aggregator = BaselineAggregator(self.reasoning_report)
+        baseline_aggregator = BaselineAggregator(Path(self.reasoning_report))
         baseline_metrics = baseline_aggregator.aggregate()
 
-        infra_aggregator = InfraAggregator(self.reasoning_report)
+        infra_aggregator = InfraAggregator(Path(self.reasoning_report))
         infra_metrics = infra_aggregator.aggregate()
 
         # 4️⃣ Base report (no decisions yet)
@@ -148,12 +148,14 @@ class ReportOrchestrator:
         else:
             report.infra_summary = "Invalid run."
 
-         # 🔟 Render HTML report
-        renderer = HtmlRenderer()
-        output_file = self.executive_dir / "index.html"
-        renderer.render(report, output_file)
-
-        print("✔ HTML report written to:", output_file)
+        # 🔟 Render HTML report
+        try:
+            renderer = HtmlRenderer()
+            output_file = self.executive_dir / "index.html"
+            renderer.render(report, output_file)
+            print("✔ HTML report written to:", output_file)
+        except Exception as e:
+            print(f"⚠ HTML report rendering failed: {e}")
 
         # 🔍 Debug visibility
         print("\n✔ Workspace:", self.workspace)
