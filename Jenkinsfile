@@ -259,7 +259,7 @@ pipeline {
                         ${DOCKER_CLI} run --rm \
                         -v "${WORKSPACE}:${WORKDIR}" \
                         -w ${WORKDIR} \
-                        -e BUILD_NUMBER=${env.BUILD_NUMBER} \
+                        -e BUILD_NUMBER=$BUILD_NUMBER \
                         -e ENVIRONMENT=${env.ENVIRONMENT} \
                         -e LOAD_PROFILE=${env.LOAD_PROFILE} \
                         -e TARGET_HOST=${env.TARGET_HOST} \
@@ -384,7 +384,7 @@ pipeline {
                         -w ${WORKDIR} \
                         -e ENVIRONMENT=${env.ENVIRONMENT} \
                         -e LOAD_PROFILE=${env.LOAD_PROFILE} \
-                        -e BUILD_NUMBER=${env.BUILD_NUMBER} \
+                        -e BUILD_NUMBER=$BUILD_NUMBER \
                         -e TARGET_HOST=${env.TARGET_HOST} \
                         -e PYTHONPATH=${WORKDIR} \
                         ${IMAGE_NAME} \
