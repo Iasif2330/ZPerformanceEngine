@@ -324,6 +324,19 @@ pipeline {
 
                     date +%s > output/test_end_ts
                 """
+                script {
+                    if (!fileExists('output/results.jtl')) {
+                        error "❌ JMeter run did not produce results.jtl; test may have failed"
+                    }
+                    // optional: check sample count inside results.jtl
+                    def samples = sh(script: "awk -F',' 'END{print NR-1}' output/results.jtl", returnStdout: true).trim()
+                    if (samples == '' || samples.toInteger() == 0) {
+                        echo '⚠️  results.jtl contains no samples'
+                    }
+                    if (!fileExists('output/dashboard/statistics.json')) {
+                        echo '⚠️  statistics.json missing after JMeter run'
+                    }
+                }
             }
         }
 
