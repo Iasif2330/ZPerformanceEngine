@@ -252,6 +252,9 @@ pipeline {
                 expression { return env.ELIGIBLE_APIS?.trim() }
             }
             steps {
+                // Ensure reasoning directory exists before running
+                sh 'mkdir -p output/reasoning'
+                
                 withCredentials([
                     string(credentialsId: 'grafana-readonly-token', variable: 'GRAFANA_API_TOKEN')
                 ]) {
@@ -272,6 +275,15 @@ pipeline {
                         ${IMAGE_NAME} \
                         python3 -m reasoning.main
                     """
+                }
+                
+                // Verify snapshot was created
+                script {
+                    if (!fileExists('output/reasoning/preflight_snapshot.yaml')) {
+                        echo '⚠️  WARNING: preflight snapshot was not created'
+                    } else {
+                        echo '✅ Preflight snapshot created'
+                    }
                 }
             }
         }
