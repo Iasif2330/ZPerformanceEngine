@@ -1,5 +1,5 @@
 from reporting.models.report_model import ReportModel
-from reporting.agents.llm_client import LLMClient
+from reporting.agents.local_llm_client import LocalLLMClient
 
 
 class ExecutiveSummaryAgent:
