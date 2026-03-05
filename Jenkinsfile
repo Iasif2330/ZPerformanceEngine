@@ -366,6 +366,11 @@ pipeline {
                         ${DOCKER_CLI} run --rm \
                           -v "${WORKSPACE}:${WORKDIR}" \
                           -w ${WORKDIR} \
+                          -e ENVIRONMENT=${env.ENVIRONMENT} \
+                          -e LOAD_PROFILE=${env.LOAD_PROFILE} \
+                          -e BUILD_NUMBER=${env.BUILD_NUMBER} \
+                          -e TARGET_HOST=${env.TARGET_HOST} \
+                          -e PYTHONPATH=${WORKDIR} \
                           ${IMAGE_NAME} \
                           python3 scripts/run_reporting.py ${WORKDIR}
                     """
