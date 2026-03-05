@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     unzip \
     ca-certificates \
+    zstd \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL https://ollama.com/install.sh | sh
 
