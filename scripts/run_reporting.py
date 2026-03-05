@@ -27,8 +27,17 @@ def check_pipeline_status(workspace_path):
     issues = []
     
     # Check if test ran
-    if not (output_dir / "dashboard" / "statistics.json").exists() and \
-       not (output_dir / "statistics.json").exists():
+    dash_file = output_dir / "dashboard" / "statistics.json"
+    root_file = output_dir / "statistics.json"
+    if dash_file.exists() and not root_file.exists():
+        # mirror for convenience (pipeline also does this normally)
+        try:
+            from shutil import copy2
+            copy2(dash_file, root_file)
+            print(f"copied {dash_file} -> {root_file}")
+        except Exception:
+            pass
+    if not dash_file.exists() and not root_file.exists():
         issues.append("No statistics.json found - JMeter test did not run")
     
     # Check if reasoning completed

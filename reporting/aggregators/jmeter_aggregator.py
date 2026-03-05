@@ -10,7 +10,15 @@ from reporting.models.run_metrics import RunMetrics
 class JMeterAggregator:
     def __init__(self, output_dir: Path):
         self.output_dir = output_dir
-        self.statistics_file = output_dir / "statistics.json"
+        # JMeter dashboard output usually lives in a nested folder
+        dashboard_file = output_dir / "dashboard" / "statistics.json"
+        root_file = output_dir / "statistics.json"
+        if dashboard_file.exists():
+            self.statistics_file = dashboard_file
+        else:
+            self.statistics_file = root_file
+        # record which path we'll use (helps with debugging logs)
+        print(f"JMeterAggregator: using statistics file at {self.statistics_file}")
 
     def aggregate(self) -> Tuple[List[ApiMetrics], RunMetrics]:
         if not self.statistics_file.exists():

@@ -334,8 +334,10 @@ pipeline {
                         echo '⚠️  results.jtl contains no samples'
                     }
                     if (!fileExists('output/dashboard/statistics.json')) {
-                        echo '⚠️  statistics.json missing after JMeter run'
+                        error '❌ statistics.json missing after JMeter run (dashboard generation failed)'
                     }
+                    // duplicate dashboard summary at root for other tools
+                    sh 'cp output/dashboard/statistics.json output/statistics.json'
                 }
             }
         }

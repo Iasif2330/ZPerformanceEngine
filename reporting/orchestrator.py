@@ -40,6 +40,17 @@ class ReportOrchestrator:
         # Fallback to root level if not found in dashboard
         if not self.statistics_json.exists():
             self.statistics_json = self.output_dir / "statistics.json"
+        # If dashboard existed but root didn't, copy for convenience so CLI users
+        # can always reference ${workspace}/output/statistics.json
+        try:
+            from shutil import copy2
+            dash_path = self.output_dir / "dashboard" / "statistics.json"
+            root_path = self.output_dir / "statistics.json"
+            if dash_path.exists() and not root_path.exists():
+                print(f"Copying {dash_path} to {root_path} for consistency")
+                copy2(dash_path, root_path)
+        except Exception:
+            pass
             
         self.reasoning_report = self.output_dir / "reasoning" / "reasoning_report.json"
         self.executive_dir = self.output_dir / "executive"
