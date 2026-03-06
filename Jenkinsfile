@@ -140,6 +140,8 @@ pipeline {
             steps {
                 sh """
                     ${DOCKER_CLI} run --rm \
+                    --dns 8.8.8.8 \
+                    --dns 1.1.1.1 \
                     -v "${WORKSPACE}:${WORKDIR}" \
                     -w ${WORKDIR} \
                     ${IMAGE_NAME} \
@@ -164,6 +166,8 @@ pipeline {
             steps {
                 sh """
                     ${DOCKER_CLI} run --rm \
+                    --dns 8.8.8.8 \
+                    --dns 1.1.1.1 \
                     -v "${WORKSPACE}:${WORKDIR}" \
                     -w ${WORKDIR} \
                     ${IMAGE_NAME} \
@@ -222,6 +226,8 @@ pipeline {
             steps {
                 sh """
                     ${DOCKER_CLI} run --rm \
+                    --dns 8.8.8.8 \
+                    --dns 1.1.1.1 \
                     -v "${WORKSPACE}:${WORKDIR}" \
                     -w ${WORKDIR} \
                     ${IMAGE_NAME} \
@@ -260,6 +266,8 @@ pipeline {
                 ]) {
                     sh """
                         ${DOCKER_CLI} run --rm \
+                        --dns 8.8.8.8 \
+                        --dns 1.1.1.1 \
                         -v "${WORKSPACE}:${WORKDIR}" \
                         -w ${WORKDIR} \
                         -e BUILD_NUMBER=${BUILD_NUMBER} \
@@ -300,6 +308,8 @@ pipeline {
                     date +%s > output/test_start_ts
 
                     ${DOCKER_CLI} run --rm \\
+                    --dns 8.8.8.8 \\
+                    --dns 1.1.1.1 \\
                     -v "${WORKSPACE}:${WORKDIR}" \\
                     -w ${WORKDIR} \\
                     ${IMAGE_NAME} \\
@@ -365,6 +375,8 @@ pipeline {
                 ]) {
                     sh """
                         ${DOCKER_CLI} run --rm \
+                        --dns 8.8.8.8 \
+                        --dns 1.1.1.1 \
                         -v "${WORKSPACE}:${WORKDIR}" \
                         -w ${WORKDIR} \
                         -e ENVIRONMENT=${env.ENVIRONMENT} \
@@ -391,6 +403,8 @@ pipeline {
                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                     sh """
                         ${DOCKER_CLI} run --rm \
+                        --dns 8.8.8.8 \
+                        --dns 1.1.1.1 \
                         -v "${WORKSPACE}:${WORKDIR}" \
                         -v ollama_models:/root/.ollama \
                         -w ${WORKDIR} \
