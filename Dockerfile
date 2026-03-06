@@ -15,11 +15,6 @@ RUN apt-get update && apt-get install -y \
     && curl -fsSL https://ollama.com/install.sh | sh
 
 # -------------------------------
-# Force deterministic DNS inside container
-# -------------------------------
-RUN printf "nameserver 8.8.8.8\nnameserver 1.1.1.1\n" > /etc/resolv.conf
-
-# -------------------------------
 # Install Python dependencies
 # -------------------------------
 COPY requirements.txt /tmp/requirements.txt
