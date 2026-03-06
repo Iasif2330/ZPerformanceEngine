@@ -13,8 +13,9 @@ qa:
     createentity: "data/qa/createentity-payload.json"
 
 autoprod:
-  baseUrl: "https://autoprod.ontic.ai"
+  baseUrl: "https://104.20.5.114"
   host: "autoprod.ontic.ai"
+  resolvedIp: "104.20.5.114"
   usersFile: "config/users/autoprod.csv"
   payloads:
     login: "data/login-payload.json"
