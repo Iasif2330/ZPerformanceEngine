@@ -234,18 +234,32 @@ class ServerCollector:
             last_json = None
 
             for idx, expr in enumerate(q.get("expr_candidates", []), start=1):
-                resp = requests.get(
-                    base_url,
-                    headers={"Authorization": f"Bearer {self.api_token}"},
-                    params={
-                        "query": expr,
-                        "start": start_ts,
-                        "end": end_ts,
-                        "step": step,
-                    },
-                    timeout=90,
-                )
-                resp.raise_for_status()
+                try:
+                    resp = requests.get(
+                        base_url,
+                        headers={"Authorization": f"Bearer {self.api_token}"},
+                        params={
+                            "query": expr,
+                            "start": start_ts,
+                            "end": end_ts,
+                            "step": step,
+                        },
+                        timeout=90,
+                    )
+                    resp.raise_for_status()
+                except requests.exceptions.HTTPError as e:
+                    print(f"\n❌ Grafana Query Failed:", flush=True)
+                    print(f"   Status: {resp.status_code}", flush=True)
+                    print(f"   URL: {base_url}", flush=True)
+                    print(f"   Query: {expr[:100]}...", flush=True)
+                    print(f"   Response: {resp.text[:200]}", flush=True)
+                    raise
+                except requests.exceptions.ConnectionError as e:
+                    print(f"\n❌ Cannot Connect to Grafana:", flush=True)
+                    print(f"   URL: {base_url}", flush=True)
+                    print(f"   Error: {str(e)}", flush=True)
+                    raise
+                
                 payload = resp.json()
                 last_json = payload
 
