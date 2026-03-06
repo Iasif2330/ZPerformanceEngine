@@ -15,6 +15,11 @@ RUN apt-get update && apt-get install -y \
     && curl -fsSL https://ollama.com/install.sh | sh
 
 # -------------------------------
+# Force deterministic DNS inside container
+# -------------------------------
+RUN printf "nameserver 8.8.8.8\nnameserver 1.1.1.1\n" > /etc/resolv.conf
+
+# -------------------------------
 # Install Python dependencies
 # -------------------------------
 COPY requirements.txt /tmp/requirements.txt
@@ -40,11 +45,8 @@ ENV JMETER_HOME=/opt/apache-jmeter-${JMETER_VERSION}
 ENV PATH=$PATH:$JMETER_HOME/bin
 
 # -------------------------------
-# Install JMeter Prometheus Backend Listener (REQUIRED)
+# Install JMeter Prometheus Backend Listener
 # -------------------------------
-# IMPORTANT:
-# - jmeter-prometheus-listener.jar must exist in the repo root
-# - This enables the BackendListener in your generated JMX
 COPY jmeter-prometheus-listener.jar \
      ${JMETER_HOME}/lib/ext/
 
